@@ -1,5 +1,5 @@
 'use strict';
-const { call, sendMessage, answerCallbackQuery } = require('./tg');
+const { call, sendMessage, answerCallbackQuery, createInvoiceLink } = require('./tg');
 const { sql } = require('./db');
 const { escapeHtml } = require('./util');
 
@@ -10,6 +10,7 @@ function mainKeyboard() {
     inline_keyboard: [
       [{ text: '🎮 Создать квиз', web_app: { url: `${APP_URL}?startapp=create` } }],
       [{ text: '📊 Мои квизы', web_app: { url: `${APP_URL}?startapp=my` } }],
+      [{ text: '💎 Поддержать проект', callback_data: 'donate' }],
       [{ text: '🔔 Уведомления', callback_data: 'notif' }, { text: 'ℹ️ Как это работает', callback_data: 'how' }],
     ],
   };
@@ -67,6 +68,29 @@ async function handleNotifToggle(msg) {
     { reply_markup: mainKeyboard() });
 }
 
+async function handleDonate(cb) {
+  await answerCallbackQuery(cb.id);
+  const userId = cb.from.id;
+  // создаём счёт сразу и отдаём как URL-кнопки
+  const rows = [];
+  for (const amount of [25, 50, 100]) {
+    const payload = `donate:${userId}:${amount}:${Date.now()}`;
+    const link = await createInvoiceLink({
+      payload,
+      title: 'Поддержать «Прознай»',
+      description: 'Донат идёт на развитие проекта. Спасибо! 💜',
+      amount,
+    });
+    if (link.ok) rows.push([{ text: `💎 ${amount} ⭐`, url: link.result }]);
+  }
+  if (!rows.length) {
+    return sendMessage(cb.message.chat.id, 'Не получилось создать счёт. Попробуй позже 🙏');
+  }
+  return sendMessage(cb.message.chat.id,
+    'Хочешь поддержать «Прознай»? 💜\n\nВсе звёзды идут на развитие проекта. Выбери любую сумму — оплата в один тап:',
+    { reply_markup: { inline_keyboard: rows } });
+}
+
 async function onUpdate(update) {
   try {
     if (update.message) {
@@ -107,6 +131,9 @@ async function onUpdate(update) {
     if (update.callback_query) {
       const cb = update.callback_query;
       const chatId = cb.message && cb.message.chat.id;
+      if (cb.data === 'donate') {
+        return handleDonate(cb);
+      }
       if (cb.data === 'how') {
         await answerCallbackQuery(cb.id);
         return sendMessage(chatId, HOW_TEXT, { reply_markup: mainKeyboard() });
@@ -130,8 +157,12 @@ async function onUpdate(update) {
 
 async function handlePayment(msg) {
   const p = msg.successful_payment;
-  // payload: reveal:<quizId>:<userId>
   const parts = (p.invoice_payload || '').split(':');
+  if (parts[0] === 'donate') {
+    const name = escapeHtml((msg.from && msg.from.first_name) || 'друг');
+    return sendMessage(msg.chat.id,
+      `Спасибо, ${name}! ${p.total_amount} ⭐ ушли на развитие «Прознай» 💜\n\nТы — легенда. Расскажи о боте друзьям, это лучшая поддержка!`);
+  }
   if (parts[0] !== 'reveal' || parts.length !== 3) return;
   const [, quizId, userIdStr] = parts;
   const userId = Number(userIdStr);

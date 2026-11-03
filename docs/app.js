@@ -46,16 +46,35 @@ function plural(n, one, few, many) {
   return many;
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** fetch с ретраями: бесплатный сервер иногда «просыпается» 30–60 секунд */
+async function fetchRetry(url, opts, attempts = 4) {
+  let lastErr = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fetch(url, opts);
+    } catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) {
+        toast(`Сервер просыпается… попытка ${i + 2} из ${attempts} 🌙`);
+        await sleep(5000 * (i + 1));
+      }
+    }
+  }
+  throw new Error('Сервер не отвечает. Он бесплатный и иногда спит — открой бота через минуту 🌙');
+}
+
 async function api(path, body) {
   let res;
   try {
-    res = await fetch(API + path, {
+    res = await fetchRetry(API + path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ initData: tg.initData || '', ...(body || {}) }),
     });
   } catch (e) {
-    throw new Error('Нет связи с сервером. Проверь интернет и открой заново.');
+    throw e;
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.ok === false) {
@@ -207,9 +226,9 @@ async function openTakeIntro(quizId) {
   show('take-intro');
   $('#take-intro-name').textContent = 'Загрузка…';
   try {
-    const res = await fetch(`${API}/api/quiz/take?id=${encodeURIComponent(quizId)}`);
+    const res = await fetchRetry(`${API}/api/quiz/take?id=${encodeURIComponent(quizId)}`, { method: 'GET' });
     const data = await res.json();
-    if (!data.ok) throw new Error('Квиз не найден — возможно, ссылка устарела');
+    if (!data.ok) throw new Error(data.message || 'Квиз не найден — возможно, ссылка устарела');
     state.takeQuiz = data.quiz;
     state.takePicks = [];
     state.takeVotes = [];
@@ -530,7 +549,7 @@ async function refreshBoard() {
   } catch (e) {}
 }
 
-/* ---------- настройки ---------- */
+/* ---------- настройки + донат ---------- */
 async function openSettings() {
   show('settings');
   const sw = $('#sw-notif');
@@ -540,13 +559,36 @@ async function openSettings() {
     sw.classList.toggle('on', enable);
     haptic('light');
     try {
-      const data = await api('/api/settings', { muted: !enable });
+      await api('/api/settings', { muted: !enable });
       toast(enable ? 'Уведомления включены 🔔' : 'Уведомления выключены 🔕');
     } catch (e) {
       sw.classList.toggle('on', !enable);
       toast(e.message);
     }
   };
+
+  document.querySelectorAll('#scr-settings .btn-donate').forEach((b) => {
+    b.onclick = async () => {
+      const amount = Number(b.dataset.amount);
+      b.disabled = true;
+      const old = b.textContent;
+      b.textContent = 'Открываем счёт…';
+      try {
+        const data = await api('/api/donate', { amount });
+        const onClosed = (e) => {
+          tg.offEvent('invoiceClosed', onClosed);
+          if (e && e.status === 'paid') toast(`Спасибо! ${amount} ⭐ — ты лучший 💜`);
+        };
+        tg.onEvent('invoiceClosed', onClosed);
+        tg.openInvoice(data.invoice_link);
+      } catch (e) {
+        toast(e.message);
+      } finally {
+        b.disabled = false;
+        b.textContent = old;
+      }
+    };
+  });
 }
 
 /* ---------- старт ---------- */

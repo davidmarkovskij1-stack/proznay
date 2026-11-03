@@ -25,13 +25,13 @@ const sendMessage = (chat_id, text, extra = {}) =>
 const answerCallbackQuery = (callback_query_id, text) =>
   call('answerCallbackQuery', { callback_query_id, text });
 
-const createInvoiceLink = (payload) =>
+const createInvoiceLink = (o) =>
   call('createInvoiceLink', {
-    title: 'Прознай: кто что ответил',
-    description: 'Раскрыть имена и ответы всех друзей в твоём квизе',
-    payload,
+    title: o.title || 'Прознай',
+    description: o.description || 'Спасибо за поддержку!',
+    payload: o.payload,
     currency: 'XTR',
-    prices: [{ label: 'Прознай', amount: 99 }],
+    prices: [{ label: o.label || 'Прознай', amount: o.amount || 99 }],
   });
 
 module.exports = { call, sendMessage, answerCallbackQuery, createInvoiceLink, API };

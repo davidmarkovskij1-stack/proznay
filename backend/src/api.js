@@ -1,6 +1,6 @@
 'use strict';
 const { sql, upsertUser } = require('./db');
-const { validateInitData, json, level, escapeHtml } = require('./util');
+const { validateInitData, json, level, escapeHtml, jparse } = require('./util');
 const { buildQuiz, getQuestions } = require('./questions');
 const { notifyQuizCompleted } = require('./notify');
 const { createInvoiceLink } = require('./tg');
@@ -86,7 +86,9 @@ async function quizTake(req, res, url) {
   if (!id) return json(res, 400, { ok: false, error: 'bad_input' });
   const [quiz] = await sql`SELECT id, creator_name, pack, q_ids, votes, key, creator_id FROM quizzes WHERE id = ${id}`;
   if (!quiz || !quiz.key) return json(res, 404, { ok: false, error: 'not_found' });
-  const questions = getQuestions(quiz.q_ids).map((q, i) => ({ i, q: q.q, opts: q.opts }));
+  const qIds = jparse(quiz.q_ids);
+  const voteQs = jparse(quiz.votes) || [];
+  const questions = getQuestions(qIds).map((q, i) => ({ i, q: q.q, opts: q.opts }));
   return json(res, 200, {
     ok: true,
     quiz: {
@@ -95,7 +97,7 @@ async function quizTake(req, res, url) {
       creator_id: quiz.creator_id,
       pack: quiz.pack,
       questions,
-      votes: quiz.votes || [],
+      votes: voteQs,
     },
   });
 }
@@ -116,7 +118,7 @@ async function quizSubmit(req, res, body) {
     return json(res, 400, { ok: false, error: 'self', message: 'Это твой квиз — друзьям виднее 😄' });
   }
 
-  const key = quiz.key;
+  const key = jparse(quiz.key);
   const correct = picks.reduce((acc, p, i) => acc + (p === key[i] ? 1 : 0), 0);
   const pct = Math.round((correct / 7) * 100);
   const cleanVotes = Array.isArray(votes) && votes.length === 3 && votes.every((v) => v >= 0 && v <= 3) ? votes : null;
@@ -154,13 +156,24 @@ async function quizResults(req, res, body) {
   if (!quiz || !quiz.key) return json(res, 404, { ok: false, error: 'not_found' });
   if (quiz.creator_id !== user.id.toString()) return json(res, 403, { ok: false, error: 'forbidden' });
 
+  // самовосстановление: если оплата прошла (webhook/confirm), но флаг не успел выставиться
+  let revealUnlocked = quiz.reveal_unlocked;
+  if (!revealUnlocked) {
+    const [p] = await sql`SELECT confirmed FROM purchases WHERE payload = ${'reveal:' + quiz_id + ':' + user.id.toString()}`;
+    if (p && p.confirmed) {
+      await sql`UPDATE quizzes SET reveal_unlocked = true WHERE id = ${quiz_id}`;
+      revealUnlocked = true;
+    }
+  }
+
   const rows = await sql`SELECT taker_id, taker_name, picks, votes, pct, created_at
                          FROM answers WHERE quiz_id = ${quiz_id} ORDER BY pct DESC, created_at ASC`;
+  for (const r of rows) { r.picks = jparse(r.picks); r.votes = jparse(r.votes) || []; }
 
   const leaderboard = rows.map((r, i) => ({ place: i + 1, name: r.taker_name, pct: r.pct, taker_id: r.taker_id }));
 
   // агрегаты голосований
-  const voteQuestions = quiz.votes || [];
+  const voteQuestions = jparse(quiz.votes) || [];
   const votesAgg = voteQuestions.map((v, vi) => {
     const counts = new Array(v.opts.length).fill(0);
     let voted = 0;
@@ -168,14 +181,14 @@ async function quizResults(req, res, body) {
       if (r.votes && r.votes[vi] != null) { counts[r.votes[vi]]++; voted++; }
     }
     const topIdx = counts.indexOf(Math.max(...counts));
-    return { q: v.q, opts: v.opts, counts, voted, top: topIdx >= 0 ? { idx: topIdx, share: voted ? Math.round((counts[topIdx] / voted) * 100) : 0 } : null };
+    return { q: v.q, opts: v.opts, counts, voted, top: topIdx >= 0 && voted ? { idx: topIdx, share: Math.round((counts[topIdx] / voted) * 100) } : null };
   });
 
-  const details = quiz.reveal_unlocked
+  const details = revealUnlocked
     ? rows.map((r) => ({ name: r.taker_name, pct: r.pct, picks: r.picks, votes: r.votes || [] }))
     : null;
 
-  const questions = getQuestions(quiz.q_ids).map((q, i) => ({ i, q: q.q, opts: q.opts }));
+  const questions = getQuestions(jparse(quiz.q_ids)).map((q, i) => ({ i, q: q.q, opts: q.opts }));
 
   return json(res, 200, {
     ok: true,
@@ -183,8 +196,8 @@ async function quizResults(req, res, body) {
       id: quiz.id,
       questions,
       votes: voteQuestions,
-      key: quiz.key,
-      reveal_unlocked: quiz.reveal_unlocked,
+      key: jparse(quiz.key),
+      reveal_unlocked: revealUnlocked,
       leaderboard,
       votes_agg: votesAgg,
       details,
@@ -194,7 +207,7 @@ async function quizResults(req, res, body) {
   });
 }
 
-/** POST /api/quiz/reveal — счёт Stars на раскрытие */
+/** POST /api/quiz/reveal — счёт Stars на раскрытие (повторно отдаём ту же ссылку — двойная оплата невозможна) */
 async function quizReveal(req, res, body) {
   const user = auth(body);
   if (!user) return json(res, 401, { ok: false, error: 'auth' });
@@ -205,13 +218,39 @@ async function quizReveal(req, res, body) {
   if (quiz.reveal_unlocked) return json(res, 200, { ok: true, already: true });
 
   const payload = `reveal:${quiz_id}:${user.id}`;
-  const link = await createInvoiceLink(payload);
+  const [existing] = await sql`SELECT invoice_link FROM purchases WHERE payload = ${payload} AND invoice_link IS NOT NULL`;
+  if (existing && existing.invoice_link) {
+    return json(res, 200, { ok: true, invoice_link: existing.invoice_link, stars: REVEAL_STARS });
+  }
+
+  const link = await createInvoiceLink({
+    payload,
+    title: 'Прознай: кто что ответил',
+    description: 'Раскрыть имена и ответы всех друзей в твоём квизе',
+    amount: REVEAL_STARS,
+  });
   if (!link.ok) return json(res, 500, { ok: false, error: 'invoice' });
 
-  await sql`INSERT INTO purchases (payload, user_id, quiz_id, stars)
-            VALUES (${payload}, ${user.id.toString()}, ${quiz_id}, ${REVEAL_STARS})
-            ON CONFLICT (payload) DO NOTHING`;
+  await sql`INSERT INTO purchases (payload, user_id, quiz_id, stars, invoice_link)
+            VALUES (${payload}, ${user.id.toString()}, ${quiz_id}, ${REVEAL_STARS}, ${link.result})
+            ON CONFLICT (payload) DO UPDATE SET invoice_link = ${link.result}`;
   return json(res, 200, { ok: true, invoice_link: link.result, stars: REVEAL_STARS });
+}
+
+/** POST /api/donate — ссылка на донат Stars (просто монетка, ничего не разблокирует) */
+async function donate(req, res, body) {
+  const user = auth(body);
+  if (!user) return json(res, 401, { ok: false, error: 'auth' });
+  const amount = [25, 50, 100].includes(Number(body.amount)) ? Number(body.amount) : 50;
+  const payload = `donate:${user.id}:${amount}:${Date.now()}`;
+  const link = await createInvoiceLink({
+    payload,
+    title: 'Поддержать «Прознай»',
+    description: 'Донат идёт на развитие проекта. Спасибо! 💜',
+    amount,
+  });
+  if (!link.ok) return json(res, 500, { ok: false, error: 'invoice' });
+  return json(res, 200, { ok: true, invoice_link: link.result, amount });
 }
 
 /** POST /api/payments/confirm — оптимистичное подтверждение из Mini App */
@@ -249,6 +288,7 @@ module.exports = {
     'POST /api/quiz/results': quizResults,
     'POST /api/quiz/reveal': quizReveal,
     'POST /api/payments/confirm': paymentsConfirm,
+    'POST /api/donate': donate,
     'POST /api/settings': settings,
   },
   quizTake,

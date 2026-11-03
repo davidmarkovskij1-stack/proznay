@@ -91,4 +91,12 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-module.exports = { newId, level, shuffle, pickN, validateInitData, json, readBody, escapeHtml };
+/** JSONB из разных драйверов приходит строкой или объектом — приводим к объекту */
+function jparse(v) {
+  if (typeof v === 'string') {
+    try { return JSON.parse(v); } catch { return v; }
+  }
+  return v;
+}
+
+module.exports = { newId, level, shuffle, pickN, validateInitData, json, readBody, escapeHtml, jparse };

@@ -68,6 +68,8 @@ async function initSchema() {
       await sql`CREATE INDEX IF NOT EXISTS idx_answers_quiz ON answers(quiz_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_quizzes_creator ON quizzes(creator_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_notifs_user_time ON notifs(user_id, sent_at)`;
+      // миграция: храним ссылку счёта, чтобы повторный тап не создавал новый счёт
+      await sql`ALTER TABLE purchases ADD COLUMN IF NOT EXISTS invoice_link TEXT`;
     })().catch((e) => { schemaReady = null; throw e; });
   }
   return schemaReady;
