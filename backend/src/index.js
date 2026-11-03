@@ -135,5 +135,4 @@ const server = http.createServer(async (req, res) => {
 initSchema()
   .then(() => console.log('DB schema ready'))
   .catch((e) => console.error('DB schema FAILED:', e.message));
-
 server.listen(PORT, () => console.log(`Прознай backend on :${PORT}`));

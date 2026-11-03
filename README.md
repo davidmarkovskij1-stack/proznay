@@ -18,8 +18,8 @@
 ```
 
 - **Mini App** — статика на GitHub Pages (бесплатно, CDN, из РФ доступен)
-- **Backend** — Node.js (без зависимостей кроме драйвера БД) на Render free
-- **БД** — Neon Postgres free
+- **Backend** — Node.js (зависимость: postgres.js) на Render free
+- **БД** — Supabase Postgres free (500 МБ)
 - **Напоминания** — cron-job.org пингует `/cron/remind?key=...` раз в сутки
 - **Оплата** — Telegram Stars (XTR), invoice link + webhook `successful_payment`
 
@@ -42,7 +42,7 @@
 |---|---|
 | `BOT_TOKEN` | токен от @BotFather |
 | `BOT_USERNAME` | имя бота без @ |
-| `NEON_DATABASE_URL` | строка подключения Neon (postgres://…) |
+| `DATABASE_URL` | строка подключения Supabase (transaction pooler, порт 6543) |
 | `APP_URL` | URL GitHub Pages, напр. `https://USER.github.io/proznay/` |
 | `BACKEND_URL` | URL сервиса Render, напр. `https://proznay.onrender.com` |
 | `WEBHOOK_SECRET` | случайная строка (любая) |
@@ -53,7 +53,7 @@
 
 1. **GitHub**: создать репо `proznay`, загрузить `miniapp/*` (Pages из корня main) и `backend/`
 2. **GitHub Pages**: Settings → Pages → Deploy from branch → main → root
-3. **Neon**: создать проект → скопировать connection string
+3. **Supabase**: создать проект (регион Frankfurt/EU) → Database → Connection string → URI (порт 6543)
 4. **Render**: New → Web Service → подключить репо
    - Root Directory: `backend`
    - Build: `npm install`; Start: `npm start`

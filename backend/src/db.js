@@ -1,13 +1,18 @@
 'use strict';
-const { neon } = require('@neondatabase/serverless');
+const postgres = require('postgres');
 
-const sql = neon(process.env.NEON_DATABASE_URL);
+// Supabase / любой Postgres. prepare:false — совместимость с transaction-pooler.
+const sql = postgres(process.env.DATABASE_URL, {
+  prepare: false,
+  max: 5,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
 
 let schemaReady = null;
 async function initSchema() {
   if (!schemaReady) {
     schemaReady = (async () => {
-      // Драйвер Neon v1.x — только tagged-template запросы, по одному за вызов.
       await sql`CREATE TABLE IF NOT EXISTS users (
         id BIGINT PRIMARY KEY,
         name TEXT NOT NULL DEFAULT '',
