@@ -91,6 +91,22 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+/** Базовый фильтр мата для анонимных сообщений (заменяем звёздочками) */
+const BAD_WORDS = [
+  'блять', 'бляд', 'сука', 'сук', 'хуй', 'хуе', 'хуё', 'пизд', 'пидор', 'пидар',
+  'мудак', 'мудак', 'гандон', 'гондон', 'еба', 'ёба', 'ебан', 'ёбан', 'ебуч',
+  'уеб', 'заеб', 'хуило', 'хуйло', 'курва', 'черт возьми', 'долбо', 'дебил',
+  'fuck', 'shit', 'bitch', 'dick', 'cunt', 'asshole', 'bastard',
+];
+function filterProfanity(text) {
+  let out = String(text);
+  for (const w of BAD_WORDS) {
+    const re = new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    out = out.replace(re, (m) => '*'.repeat(Math.max(3, m.length)));
+  }
+  return out;
+}
+
 /** JSONB из разных драйверов приходит строкой или объектом — приводим к объекту */
 function jparse(v) {
   if (typeof v === 'string') {
@@ -99,4 +115,4 @@ function jparse(v) {
   return v;
 }
 
-module.exports = { newId, level, shuffle, pickN, validateInitData, json, readBody, escapeHtml, jparse };
+module.exports = { newId, level, shuffle, pickN, validateInitData, json, readBody, escapeHtml, jparse, filterProfanity };

@@ -517,3 +517,28 @@ body::after {
 .claim-card.sel { border-color: var(--violet); background: var(--grad-soft); }
 .claim-card.sel .claim-check { display: flex; }
 .intrigue { font-weight: 700; color: var(--pink); opacity: 0.85; }
+
+/* шептунки */
+#whisper-text {
+  width: 100%; resize: none;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text); font-family: inherit; font-size: 15px;
+  padding: 12px 14px; outline: none;
+  transition: border-color 0.2s;
+}
+#whisper-text:focus { border-color: var(--violet); }
+.chip-item { cursor: pointer; transition: all 0.15s var(--ease); }
+.chip-item:active { background: var(--grad-soft); border-color: var(--violet); }
+.whisper-card {
+  background: var(--grad-soft);
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+}
+.whisper-card .w-text { font-size: 15.5px; font-weight: 650; line-height: 1.4; }
+.whisper-card .w-author {
+  margin-top: 8px; font-size: 12.5px; font-weight: 700;
+  color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em;
+}

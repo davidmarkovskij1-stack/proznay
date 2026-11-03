@@ -1,6 +1,6 @@
 'use strict';
 const { sql, upsertUser } = require('./db');
-const { validateInitData, json, level, escapeHtml, jparse } = require('./util');
+const { validateInitData, json, level, escapeHtml, jparse, filterProfanity } = require('./util');
 const { buildQuiz, getQuestions, PACKS, isAdultPack } = require('./questions');
 const { notifyQuizCompleted } = require('./notify');
 const { createInvoiceLink } = require('./tg');
@@ -54,6 +54,11 @@ async function quizCreate(req, res, body) {
   if (n >= 5) return json(res, 429, { ok: false, error: 'limit', message: 'Не больше 5 квизов в сутки. Качество важнее количества 😌' });
 
   const pack = PACKS[body.pack] ? body.pack : 'classic';
+
+  // пак ещё в разработке
+  if (PACKS[pack].soon) {
+    return json(res, 400, { ok: false, error: 'soon', message: `Пак «${PACKS[pack].title}» скоро появится — следи за новостями 🔔` });
+  }
 
   // платный пак — проверяем доступ
   if (PACKS[pack].price > 0) {
@@ -247,11 +252,16 @@ async function quizSubmit(req, res, body) {
   const pct = Math.round((correct / 7) * 100);
   const cleanVotes = Array.isArray(votes) && votes.length === 3 && votes.every((v) => v >= 0 && v <= 3) ? votes : null;
 
+  // шептунок: анонимное сообщение создателю
+  let whisper = typeof body.whisper === 'string' ? body.whisper.trim().slice(0, 140) : null;
+  if (whisper) whisper = filterProfanity(whisper);
+
   await upsertUser(user);
   try {
-    await sql`INSERT INTO answers (quiz_id, taker_id, taker_name, picks, votes, correct, pct)
+    await sql`INSERT INTO answers (quiz_id, taker_id, taker_name, picks, votes, correct, pct, whisper)
               VALUES (${quiz_id}, ${user.id.toString()}, ${user.first_name || 'Друг'},
-                      ${JSON.stringify(picks)}::jsonb, ${cleanVotes ? JSON.stringify(cleanVotes) : null}::jsonb, ${correct}, ${pct})`;
+                      ${JSON.stringify(picks)}::jsonb, ${cleanVotes ? JSON.stringify(cleanVotes) : null}::jsonb, ${correct}, ${pct},
+                      ${whisper})`;
   } catch (e) {
     if (String(e.code) === '23505') {
       const [prev] = await sql`SELECT pct FROM answers WHERE quiz_id = ${quiz_id} AND taker_id = ${user.id.toString()}`;
@@ -265,7 +275,7 @@ async function quizSubmit(req, res, body) {
   const place = rows.findIndex((r) => r.pct <= pct) + 1;
   const total = rows.length;
 
-  await notifyQuizCompleted(quiz, user.first_name, pct, place, total);
+  await notifyQuizCompleted(quiz, user.first_name, pct, place, total, whisper);
 
   return json(res, 200, { ok: true, pct, level: level(pct), place, total });
 }
@@ -290,11 +300,17 @@ async function quizResults(req, res, body) {
     }
   }
 
-  const rows = await sql`SELECT taker_id, taker_name, picks, votes, pct, created_at
+  const rows = await sql`SELECT taker_id, taker_name, picks, votes, pct, whisper, created_at
                          FROM answers WHERE quiz_id = ${quiz_id} ORDER BY pct DESC, created_at ASC`;
   for (const r of rows) { r.picks = jparse(r.picks); r.votes = jparse(r.votes) || []; }
 
   const leaderboard = rows.map((r, i) => ({ place: i + 1, name: r.taker_name, pct: r.pct, taker_id: r.taker_id }));
+
+  // шептунки: текст виден всем, автор — только после раскрытия
+  const whispers = rows.filter((r) => r.whisper).map((r) => ({
+    text: r.whisper,
+    author: revealUnlocked ? r.taker_name : null,
+  }));
 
   // агрегаты голосований
   const voteQuestions = jparse(quiz.votes) || [];
@@ -311,7 +327,6 @@ async function quizResults(req, res, body) {
   const details = revealUnlocked
     ? rows.map((r) => ({ name: r.taker_name, pct: r.pct, picks: r.picks, votes: r.votes || [] }))
     : null;
-
   const questions = getQuestions(jparse(quiz.q_ids)).map((q, i) => ({ i, q: q.q, opts: q.opts }));
 
   return json(res, 200, {
@@ -324,6 +339,7 @@ async function quizResults(req, res, body) {
       reveal_unlocked: revealUnlocked,
       leaderboard,
       votes_agg: votesAgg,
+      whispers,
       details,
       stars: REVEAL_STARS,
       share: { url: shareUrl(quiz.id), text: SHARE_TEXT(quiz.creator_name) },

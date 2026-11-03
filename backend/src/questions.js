@@ -286,12 +286,12 @@ const PACKS = {
   school: { code: 'school', title: 'Школа и универ', emoji: '🎒', price: 0, desc: 'Парта, пары, сессия — ностальгия' },
   truth: { code: 'truth', title: 'Горькая правда', emoji: '🌶', price: 99, desc: 'Вопросы, на которые честно ответят не все' },
   roast: { code: 'roast', title: 'Кринж и ляпы', emoji: '🤡', price: 99, desc: 'Смешные и стыдные моменты — поржём вместе' },
-  adult: { code: 'adult', title: 'После полуночи', emoji: '🌙', price: 149, desc: 'Смелые вопросы для взрослых компаний (только 18+)' },
+  psy: { code: 'psy', title: 'Психология', emoji: '🧠', price: 0, soon: true, desc: 'Глубокий разбор личности — скоро' },
 };
 
 const PACK_POOLS = {
   classic: CLASSIC, party: PARTY, love: LOVE, school: SCHOOL,
-  truth: TRUTH, roast: ROAST, adult: ADULT,
+  truth: TRUTH, roast: ROAST,
 };
 
 const BANK = {};
@@ -299,7 +299,9 @@ for (const p of Object.values(PACK_POOLS)) for (const q of p) BANK[q.id] = q;
 
 /** Собрать квиз: бесплатные паки — 4 Классики + 3 пака; платные — 2 Классики + 5 паков */
 function buildQuiz(packCode) {
-  const code = PACKS[packCode] ? packCode : 'classic';
+  let code = PACKS[packCode] ? packCode : 'classic';
+  const pool = PACK_POOLS[code];
+  if (!pool || !pool.length) code = 'classic';
   const paid = PACKS[code].price > 0;
   const qs = code === 'classic'
     ? pickN(CLASSIC, 7)

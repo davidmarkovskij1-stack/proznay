@@ -175,6 +175,28 @@
       <div class="opts" id="votes-opts"></div>
     </div>
 
+    <!-- ЭКРАН: шептунок -->
+    <div class="screen" id="scr-whisper">
+      <div class="center mt16">
+        <div class="emoji-big">🤫</div>
+        <div class="h2 mt12">Последний шаг</div>
+        <div class="sub mt8">Можешь <b>анонимно</b> шепнуть что-то создателю.<br>Он увидит текст, но не поймёт, кто это.</div>
+      </div>
+      <div class="chips mt16" id="whisper-chips">
+        <span class="chip-item" data-t="Ты классный(ая)! 💜">💜 Комплимент</span>
+        <span class="chip-item" data-t="Мне нравится тебя... 😏">😍 Признание</span>
+        <span class="chip-item" data-t="Ты помнишь, как мы...">😂 Смешное</span>
+        <span class="chip-item" data-t="Мой тебе совет:">💡 Совет</span>
+        <span class="chip-item" data-t="Спрашиваю анонимно:">❓ Вопрос</span>
+      </div>
+      <div class="card mt12">
+        <textarea id="whisper-text" maxlength="140" rows="3" placeholder="Напиши что-то анонимно…"></textarea>
+        <div class="sub small mt8" style="text-align:right"><span id="whisper-len">0</span>/140</div>
+      </div>
+      <button class="btn mt16" id="btn-whisper-send">Отправить анонимно 🤫</button>
+      <button class="link-btn" id="btn-whisper-skip">Пропустить →</button>
+    </div>
+
     <!-- ЭКРАН: результат -->
     <div class="screen" id="scr-result">
       <div class="center">

@@ -8,7 +8,7 @@ const APP_URL = process.env.APP_URL || '';
  * Уведомление создателю квиза: друг прошёл квиз.
  * Анти-спам: не более 8 уведомлений на квиз в час, дальше — тишина.
  */
-async function notifyQuizCompleted(quiz, takerName, pct, place, total) {
+async function notifyQuizCompleted(quiz, takerName, pct, place, total, whisper) {
   if (!quiz || !quiz.creator_id) return;
   const [u] = await sql`SELECT muted FROM users WHERE id = ${quiz.creator_id}`;
   if (u && u.muted) return;
@@ -19,10 +19,18 @@ async function notifyQuizCompleted(quiz, takerName, pct, place, total) {
 
   const lv = level(pct);
   const name = escapeHtml(takerName || 'Кто-то');
-  await sendMessage(quiz.creator_id,
-    `👁 <b>${name}</b> прошёл(а) твой квиз: <b>${pct}%</b> — ${lv.emoji} ${lv.title}\n` +
-    `Место в рейтинге: <b>${place}</b> из ${total}`,
-    { reply_markup: { inline_keyboard: [[{ text: '📊 Смотреть рейтинг', web_app: { url: `${APP_URL}?startapp=${quiz.id}` } }]] } })
+  let text = `👁 <b>${name}</b> прошёл(а) твой квиз: <b>${pct}%</b> — ${lv.emoji} ${lv.title}\n` +
+    `Место в рейтинге: <b>${place}</b> из ${total}`;
+  const kb = { inline_keyboard: [[{ text: '📊 Смотреть рейтинг', web_app: { url: `${APP_URL}?startapp=${quiz.id}` } }]] };
+
+  if (whisper) {
+    text = `🤫 <b>Кто-то шепнул тебе анонимно:</b>\n\n«${escapeHtml(whisper)}»\n\n` +
+      `А ещё <b>${name}</b> прошёл(а) квиз на <b>${pct}%</b> ${lv.emoji}`;
+    kb.inline_keyboard.unshift([{ text: '💌 Открыть шептунки', web_app: { url: `${APP_URL}?startapp=${quiz.id}` } }]);
+  }
+
+  await sendMessage(quiz.creator_id, text,
+    { reply_markup: kb })
     .catch(() => {});
   await sql`INSERT INTO notifs (user_id, kind, quiz_id) VALUES (${quiz.creator_id}, 'done', ${quiz.id})`;
 }

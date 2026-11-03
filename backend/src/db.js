@@ -71,6 +71,8 @@ async function initSchema() {
       // миграция: храним ссылку счёта, чтобы повторный тап не создавал новый счёт
       await sql`ALTER TABLE purchases ADD COLUMN IF NOT EXISTS invoice_link TEXT`;
       await sql`ALTER TABLE purchases ADD COLUMN IF NOT EXISTS claimed BOOLEAN NOT NULL DEFAULT false`;
+      // анонимные «шептунки» — сообщения друзей создателю
+      await sql`ALTER TABLE answers ADD COLUMN IF NOT EXISTS whisper TEXT`;
       // купленные паки (или открытые за донат)
       await sql`CREATE TABLE IF NOT EXISTS user_packs (
         user_id BIGINT NOT NULL,

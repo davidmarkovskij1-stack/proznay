@@ -370,11 +370,39 @@ function renderVotesQ(i) {
       b.classList.add('sel');
       setTimeout(() => {
         if (i + 1 < 3) renderVotesQ(i + 1);
-        else submitTake();
+        else openWhisper();
       }, 180);
     });
     box.appendChild(b);
   });
+}
+
+/* ---------- шептунок ---------- */
+function openWhisper() {
+  show('whisper');
+  const ta = $('#whisper-text');
+  ta.value = '';
+  $('#whisper-len').textContent = '0';
+  state.whisper = null;
+
+  document.querySelectorAll('#whisper-chips .chip-item').forEach((chip) => {
+    chip.onclick = () => {
+      ta.value = chip.dataset.t + ' ';
+      $('#whisper-len').textContent = ta.value.length;
+      ta.focus();
+      haptic('light');
+    };
+  });
+
+  ta.oninput = () => { $('#whisper-len').textContent = ta.value.length; };
+
+  $('#btn-whisper-send').onclick = () => {
+    const text = ta.value.trim();
+    if (!text) { toast('Напиши что-нибудь 🙂'); return; }
+    state.whisper = text.slice(0, 140);
+    submitTake();
+  };
+  $('#btn-whisper-skip').onclick = () => { state.whisper = null; submitTake(); };
 }
 
 async function submitTake() {
@@ -384,6 +412,7 @@ async function submitTake() {
       quiz_id: state.takeQuiz.id,
       picks: state.takePicks,
       votes: state.takeVotes,
+      whisper: state.whisper || undefined,
     });
     state.takeResult = data;
     renderResult(data, state.takeQuiz.creator_name);
@@ -596,6 +625,18 @@ function renderBoard() {
     if (!q.details) html += `<div class="sub small mt8 intrigue">Кто назвал тебя капибарой — узнаешь после раскрытия 👀</div>`;
   }
 
+  // шептунки: анонимные сообщения друзей
+  if (q.whispers && q.whispers.length) {
+    html += `<div class="h3 mt24">💌 Шептунки</div>`;
+    html += `<div class="sub small mt8">Друзья шепнули тебе анонимно:</div>`;
+    html += q.whispers.map((w) => `
+      <div class="whisper-card mt12">
+        <div class="w-text">«${esc(w.text)}»</div>
+        <div class="w-author">${w.author ? 'от ' + esc(w.author) : 'author hidden · 👀'}</div>
+      </div>`).join('');
+    if (!q.details) html += `<div class="sub small mt8 intrigue">Кто это написал — увидишь после раскрытия 🤫</div>`;
+  }
+
   // раскрытие
   if (q.details) {
     html += `<div class="h3 mt24">Кто что ответил 🔓</div>`;
@@ -625,7 +666,7 @@ function renderBoard() {
       </div>
       <div class="stars-card mt16">
         <div class="h3">Кто это сказал? 👀</div>
-        <div class="sub small mt8" style="color:rgba(255,255,255,.85)">Кто назвал тебя капибарой? Какую энергию дал каждый друг? И кто на что ответил в самом квизе.</div>
+        <div class="sub small mt8" style="color:rgba(255,255,255,.85)">Кто назвал тебя капибарой? Кто шепнул анонимно? И кто на что ответил в самом квизе.</div>
         <button class="btn" id="btn-reveal">Раскрыть за ${q.stars} ⭐</button>
         <div class="small center mt12" style="color:rgba(255,255,255,.65)">Оплата звёздами Telegram · безопасно</div>
       </div>`;
