@@ -2,6 +2,7 @@
 const { call, sendMessage, answerCallbackQuery, createInvoiceLink } = require('./tg');
 const { sql } = require('./db');
 const { escapeHtml } = require('./util');
+const { PACKS } = require('./questions');
 
 const APP_URL = process.env.APP_URL || '';
 
@@ -163,11 +164,32 @@ async function onUpdate(update) {
 async function handlePayment(msg) {
   const p = msg.successful_payment;
   const parts = (p.invoice_payload || '').split(':');
-  if (parts[0] === 'donate') {
-    const name = escapeHtml((msg.from && msg.from.first_name) || 'друг');
+  const name = escapeHtml((msg.from && msg.from.first_name) || 'друг');
+
+  // донат: фиксируем и обещаем награду в приложении
+  if (parts[0] === 'donate' && parts.length === 4) {
+    await sql`INSERT INTO purchases (payload, user_id, quiz_id, stars, confirmed, claimed)
+              VALUES (${p.invoice_payload}, ${msg.from.id.toString()}, 'donate', ${p.total_amount}, true, false)
+              ON CONFLICT (payload) DO UPDATE SET confirmed = true, claimed = false`.catch(() => {});
     return sendMessage(msg.chat.id,
-      `Спасибо, ${name}! ${p.total_amount} ⭐ ушли на развитие «Прознай» 💜\n\nТы — легенда. Расскажи о боте друзьям, это лучшая поддержка!`);
+      `Спасибо, ${name}! ${p.total_amount} ⭐ 💜\n\nТеперь забери награду:\nоткрой приложение → <b>Настройки → 🎁 Награда за донат</b>`,
+      { reply_markup: { inline_keyboard: [[{ text: '🎁 Забрать награду', web_app: { url: `${APP_URL}?startapp=my` } }]] } })
+      .catch(() => {});
   }
+
+  // покупка пака: открываем сразу
+  if (parts[0] === 'pack' && parts.length === 4) {
+    const code = PACKS[parts[2]] ? parts[2] : null;
+    if (code) {
+      await sql`INSERT INTO user_packs (user_id, pack) VALUES (${msg.from.id.toString()}, ${code}) ON CONFLICT DO NOTHING`.catch(() => {});
+      const pk = PACKS[code];
+      return sendMessage(msg.chat.id,
+        `Пак открыт 🔓\n\n<b>${pk.emoji} ${pk.title}</b> — теперь можно создать квиз с этим вайбом!`,
+        { reply_markup: { inline_keyboard: [[{ text: '🎮 Создать квиз', web_app: { url: `${APP_URL}?startapp=my` } }]] } })
+        .catch(() => {});
+    }
+  }
+
   if (parts[0] !== 'reveal' || parts.length !== 3) return;
   const [, quizId, userIdStr] = parts;
   const userId = Number(userIdStr);
@@ -176,7 +198,7 @@ async function handlePayment(msg) {
   await sql`UPDATE quizzes SET reveal_unlocked = true WHERE id = ${quizId}`;
 
   await sendMessage(msg.chat.id,
-    'Раскрыто 🔓\n\nТеперь в лидерборде видно, <b>кто именно как ответил</b>. Удачи — и не обижайся на друзей 😄',
+    'Раскрыто 🔓\n\nТеперь в лидерборде видно, <b>кто именно как ответил</b> — и кто что написал в секретных голосованиях 😏',
     { reply_markup: { inline_keyboard: [[{ text: '👀 Открыть лидерборд', web_app: { url: `${APP_URL}?startapp=${quizId}` } }]] } })
     .catch(() => {});
   console.log(`Payment ok: user ${userId} quiz ${quizId} stars ${p.total_amount}`);

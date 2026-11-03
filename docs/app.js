@@ -20,7 +20,15 @@ const state = {
 };
 
 const RING_C = 2 * Math.PI * 84;
-const PACK_EMOJI = { classic: '🎯', party: '🎉' };
+const PACK_META = {
+  classic: ['🎯', 'Классика'],
+  party: ['🎉', 'Вечеринка'],
+  love: ['💘', 'Романтика'],
+  school: ['🎒', 'Школа и универ'],
+  truth: ['🌶', 'Горькая правда'],
+  roast: ['🤡', 'Roast себя'],
+  adult: ['🔞', '18+'],
+};
 
 /* ---------- утилиты ---------- */
 const $ = (sel) => document.querySelector(sel);
@@ -123,6 +131,7 @@ const BACK_MAP = {
   'my': () => show('welcome'),
   'board': () => openMy(true),
   'settings': () => openMy(true),
+  'claim': () => show('settings'),
   'take-intro': () => tg.close(),
   'result': () => tg.close(),
 };
@@ -151,17 +160,85 @@ tg.BackButton.onClick(() => {
 /* ---------- создание квиза ---------- */
 function openPack() {
   show('pack');
+  renderPackList();
 }
 
-function bindPackCards() {
-  document.querySelectorAll('#scr-pack .pack-card:not(.soon)').forEach((card) => {
+async function loadPacks() {
+  try {
+    const data = await api('/api/packs');
+    state.packs = data.packs;
+  } catch (e) {
+    state.packs = Object.entries(PACK_META).map(([code, [emoji, title]]) => ({
+      code, emoji, title, desc: '', price: 0, owned: true, adult: false,
+    }));
+  }
+}
+
+function renderPackList() {
+  const box = $('#pack-list');
+  if (!box) return;
+  if (!state.packs.length) {
+    box.innerHTML = '<div class="spin"></div>';
+    loadPacks().then(renderPackList);
+    return;
+  }
+  box.innerHTML = state.packs.map((p) => {
+    const sel = p.code === state.pack ? ' sel' : '';
+    const locked = !p.owned;
+    const right = locked
+      ? `<div class="pack-lock">🔒 ${p.price} ⭐</div>`
+      : (p.price > 0 ? '<div class="pack-open">Открыт ✓</div>' : '');
+    return `
+      <div class="pack-card${sel}" data-pack="${esc(p.code)}" data-locked="${locked ? 1 : 0}">
+        <div class="emoji">${esc(p.emoji)}</div>
+        <div>
+          <div class="h3">${esc(p.title)}${p.adult ? ' <span class="badge-18">18+</span>' : ''}</div>
+          <div class="sub small">${esc(p.desc || '')}</div>
+        </div>
+        ${right}
+      </div>`;
+  }).join('');
+
+  box.querySelectorAll('.pack-card').forEach((card) => {
     card.addEventListener('click', () => {
-      document.querySelectorAll('#scr-pack .pack-card').forEach((c) => c.classList.remove('sel'));
+      const code = card.dataset.pack;
+      if (card.dataset.locked === '1') return buyPack(code);
+      box.querySelectorAll('.pack-card').forEach((c) => c.classList.remove('sel'));
       card.classList.add('sel');
-      state.pack = card.dataset.pack;
+      state.pack = code;
       haptic('light');
     });
   });
+}
+
+async function buyPack(code) {
+  const p = state.packs.find((x) => x.code === code);
+  if (!p) return;
+  if (p.adult) {
+    const ok18 = await new Promise((r) => {
+      try { tg.showConfirm('Тебе есть 18 лет? Пак содержит взрослые вопросы.', r); } catch (e) { r(true); }
+    });
+    if (!ok18) { toast('Пак останется закрытым 🔒'); return; }
+  }
+  toast('Открываем оплату…');
+  try {
+    const data = await api('/api/pack/buy', { pack: code });
+    if (data.already) { await loadPacks(); renderPackList(); return; }
+    const onClosed = async (e) => {
+      tg.offEvent('invoiceClosed', onClosed);
+      if (e && e.status === 'paid') {
+        try { await api('/api/payments/confirm', { payload: data.payload }); } catch (err) {}
+        toast(`Пак «${p.title}» открыт! 🎉`);
+        await loadPacks();
+        state.pack = code;
+        renderPackList();
+      }
+    };
+    tg.onEvent('invoiceClosed', onClosed);
+    tg.openInvoice(data.invoice_link);
+  } catch (e) {
+    toast(e.message);
+  }
 }
 
 async function startCreate() {
@@ -413,25 +490,47 @@ function renderMyList(quizzes) {
     return;
   }
   list.innerHTML = quizzes.map((q) => {
-    const emoji = PACK_EMOJI[q.pack] || '🎯';
+    const [emoji, title] = PACK_META[q.pack] || ['🎯', 'Классика'];
     const d = new Date(q.created_at);
     const dateStr = `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}`;
     const sub = q.takers > 0
-      ? `${q.takers} ${plural(q.takers, 'человек прошёл', 'человека прошли', 'человек прошли')} · лид: ${esc(q.top_name)} ${q.top_pct}%`
-      : 'Ждёт друзей…';
+      ? `${dateStr} · ${q.takers} ${plural(q.takers, 'человек прошёл', 'человека прошли', 'человек прошли')} · лид: ${esc(q.top_name)} ${q.top_pct}%`
+      : `${dateStr} · ждёт друзей…`;
     return `
       <div class="quiz-item" data-id="${esc(q.id)}">
         <div class="q-emoji">${emoji}</div>
         <div class="meta">
-          <div class="title">Квиз от ${dateStr}</div>
+          <div class="title">${esc(title)}</div>
           <div class="sub">${sub}</div>
         </div>
         <div class="arrow">›</div>
       </div>`;
-  }).join('') + `<button class="link-btn" id="btn-open-settings">Настройки уведомлений →</button>`;
+  }).join('') + `<button class="link-btn" id="btn-open-settings">Настройки и награды →</button>`;
 
   list.querySelectorAll('.quiz-item').forEach((item) => {
-    item.addEventListener('click', () => openBoard(item.dataset.id));
+    const id = item.dataset.id;
+    let lpTimer = null;
+    const startLp = () => {
+      lpTimer = setTimeout(async () => {
+        lpTimer = null;
+        haptic('heavy');
+        let ok = true;
+        try { ok = await new Promise((r) => tg.showConfirm('Удалить квиз? Ответы друзей сотрутся навсегда.', r)); } catch (e) {}
+        if (!ok) return;
+        try {
+          await api('/api/quiz/delete', { quiz_id: id });
+          item.dataset.deleted = '1';
+          toast('Квиз удалён 🗑');
+          openMy(true);
+        } catch (e) { toast(e.message); }
+      }, 600);
+    };
+    const cancelLp = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+    item.addEventListener('touchstart', startLp, { passive: true });
+    item.addEventListener('touchend', cancelLp);
+    item.addEventListener('touchmove', cancelLp);
+    item.addEventListener('contextmenu', (e) => { e.preventDefault(); startLp(); });
+    item.addEventListener('click', () => { if (!item.dataset.deleted) openBoard(id); });
   });
   const s = $('#btn-open-settings');
   if (s) s.addEventListener('click', openSettings);
@@ -486,13 +585,15 @@ function renderBoard() {
     }).join('') + `</div>`;
   }
 
-  // голосования: агрегаты
+  // секретные голосования: агрегаты + интрига
   if (q.votes_agg && q.votes_agg.length) {
-    html += `<div class="h3 mt24">Что друзья думают о тебе 🤫</div>`;
+    html += `<div class="h3 mt24">🤫 Секретные голосования</div>`;
+    html += `<div class="sub small mt8">Друзья отвечали анонимно. Общее видно всем — но кто именно сказал…</div>`;
     html += `<div class="vote-agg mt12">` + q.votes_agg.map((v) => {
       if (!v.top) return `<div class="chip"><span>${esc(v.q)}</span><span class="pct">—</span></div>`;
       return `<div class="chip"><span>${esc(v.q)}</span><span class="pct">${esc(v.opts[v.top.idx])} · ${v.top.share}%</span></div>`;
     }).join('') + `</div>`;
+    if (!q.details) html += `<div class="sub small mt8 intrigue">Кто назвал тебя капибарой — узнаешь после раскрытия 👀</div>`;
   }
 
   // раскрытие
@@ -504,7 +605,7 @@ function renderBoard() {
         `<div class="kv"><span class="q">${esc(qq.q)}</span><span>${esc(qq.opts[d.picks[i]])}${d.picks[i] === q.key[i] ? ' ✅' : ` <span class="dim">(верно: ${esc(qq.opts[q.key[i]])})</span>`}</span></div>`
       ).join('');
       const votes = d.votes.length && q.votes
-        ? q.votes.map((v, i) => d.votes[i] != null ? `<div class="kv"><span class="q">${esc(v.q)}</span><span>${esc(v.opts[d.votes[i]])}</span></div>` : '').join('')
+        ? `<div class="sub small mt8" style="font-weight:700">Секретные ответы:</div>` + q.votes.map((v, i) => d.votes[i] != null ? `<div class="kv"><span class="q">${esc(v.q)}</span><span>${esc(v.opts[d.votes[i]])}</span></div>` : '').join('')
         : '';
       return `
         <div class="detail-row" data-i="${di}">
@@ -513,16 +614,18 @@ function renderBoard() {
         </div>`;
     }).join('');
   } else if (q.leaderboard.length) {
-    const names = q.leaderboard.slice(0, 3).map((r) => esc(r.name));
+    const names = q.leaderboard.slice(0, 4).map((r) => esc(r.name));
+    const tops = (q.votes_agg || []).filter((v) => v.top).slice(0, 4);
+    const teaserRows = tops.length
+      ? tops.map((v, i) => `<div class="teaser-row"><span>${names[i % Math.max(1, names.length)]}</span><span>${esc(v.opts[v.top.idx])}</span></div>`).join('')
+      : names.map((n) => `<div class="teaser-row"><span>${n}</span><span>«…»</span></div>`).join('');
     html += `
       <div class="card mt24 paywall-teaser">
-        <div class="teaser-rows">
-          ${names.map((n) => `<div class="teaser-row"><span>${n}</span><span>«Кот 🐈»</span></div>`).join('')}
-        </div>
+        <div class="teaser-rows">${teaserRows}</div>
       </div>
       <div class="stars-card mt16">
-        <div class="h3">Узнай всё, что о тебе ответили</div>
-        <div class="sub small mt8" style="color:rgba(255,255,255,.85)">Кто назвал тебя капибарой? Кто оценил энергию на 10? И кто на какие вопросы ошибся.</div>
+        <div class="h3">Кто это сказал? 👀</div>
+        <div class="sub small mt8" style="color:rgba(255,255,255,.85)">Кто назвал тебя капибарой? Какую энергию дал каждый друг? И кто на что ответил в самом квизе.</div>
         <button class="btn" id="btn-reveal">Раскрыть за ${q.stars} ⭐</button>
         <div class="small center mt12" style="color:rgba(255,255,255,.65)">Оплата звёздами Telegram · безопасно</div>
       </div>`;
@@ -598,6 +701,124 @@ async function openSettings() {
     }
   };
   // донат-кнопки привязаны глобально (bindDonate при старте)
+
+  // награда за донат?
+  try {
+    const st = await api('/api/donate/status');
+    const rc = $('#rewards-card');
+    if (rc) {
+      rc.style.display = st.unclaimed > 0 ? '' : 'none';
+      const sub = $('#rewards-sub');
+      if (sub && st.unclaimed > 0) {
+        sub.textContent = `У тебя ${st.unclaimed} ${plural(st.unclaimed, 'награда ждёт', 'награды ждут', 'наград ждут')}: ${st.amounts.join(' + ')} ⭐`;
+      }
+    }
+  } catch (e) {}
+}
+
+/* ---------- награды за донат ---------- */
+function confirm18() {
+  return new Promise((r) => {
+    try { tg.showConfirm('Тебе есть 18 лет? Пак содержит взрослые вопросы.', r); } catch (e) { r(true); }
+  });
+}
+
+async function runClaim(packs) {
+  const data = await api('/api/donate/claim', { packs: packs || [] });
+  const granted = data.granted || [];
+  if (data.mecenat) {
+    toast('Ты — Меценат 💎 Все паки открыты навсегда!');
+  } else if (granted.length) {
+    toast(`Открыто: ${granted.map((g) => g.emoji + ' ' + g.title).join(', ')} 🎉`);
+  } else {
+    toast('Все паки уже открыты 😎');
+  }
+  await loadPacks();
+  return granted;
+}
+
+function renderClaimList() {
+  const locked = state.packs.filter((p) => p.price > 0 && !p.owned);
+  const list = $('#claim-list');
+  if (!list) return;
+  if (!locked.length) {
+    list.innerHTML = '<div class="card center"><div class="sub small">Все платные паки уже открыты 😎<br>Награда конвертируется в них автоматически.</div></div>';
+    const apply = $('#btn-claim-apply');
+    if (apply) apply.style.display = 'none';
+    return;
+  }
+  const apply = $('#btn-claim-apply');
+  if (apply) apply.style.display = '';
+  const maxPick = state.claimAmounts.some((a) => a >= 50) ? 2 : 1;
+  $('#claim-sub').textContent = maxPick === 2
+    ? 'Выбери два пака, которые открыть:'
+    : 'Выбери пак, который открыть:';
+  list.innerHTML = locked.map((p) => `
+    <div class="pack-card claim-card" data-pack="${esc(p.code)}">
+      <div class="emoji">${esc(p.emoji)}</div>
+      <div><div class="h3">${esc(p.title)}${p.adult ? ' <span class="badge-18">18+</span>' : ''}</div>
+      <div class="sub small">${esc(p.desc || '')}</div></div>
+      <div class="claim-check">✓</div>
+    </div>`).join('');
+
+  list.querySelectorAll('.claim-card').forEach((card) => {
+    card.addEventListener('click', () => {
+      const code = card.dataset.pack;
+      const idx = state.claimPacks.indexOf(code);
+      if (idx >= 0) {
+        state.claimPacks.splice(idx, 1);
+        card.classList.remove('sel');
+      } else {
+        if (state.claimPacks.length >= maxPick) {
+          toast(`Можно выбрать максимум ${maxPick}`);
+          return;
+        }
+        state.claimPacks.push(code);
+        card.classList.add('sel');
+      }
+      haptic('light');
+    });
+  });
+}
+
+async function openClaimFlow() {
+  try {
+    const st = await api('/api/donate/status');
+    if (!st.unclaimed) { toast('Наград уже нет 😅'); return; }
+    state.claimAmounts = st.amounts;
+
+    // 100⭐ → меценат сразу; 25⭐ → сюрприз; 50⭐ → выбор двух
+    if (st.amounts.some((a) => a >= 100) || st.amounts.every((a) => a < 50)) {
+      const granted = await runClaim([]);
+      $('#rewards-card').style.display = 'none';
+      if (st.amounts.every((a) => a < 50) && granted.length) {
+        const g = granted[0];
+        toast(`🎁 Сюрприз: выпал пак «${g.title}» ${g.emoji}!`);
+      }
+      return;
+    }
+
+    state.claimPacks = [];
+    show('claim');
+    await loadPacks();
+    renderClaimList();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+async function applyClaim() {
+  const apply = $('#btn-claim-apply');
+  if (apply) { apply.disabled = true; apply.textContent = 'Открываем…'; }
+  try {
+    await runClaim(state.claimPacks);
+    $('#rewards-card').style.display = 'none';
+    show('settings');
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    if (apply) { apply.disabled = false; apply.textContent = 'Забрать награду ✨'; }
+  }
 }
 
 /* ---------- старт ---------- */
@@ -620,6 +841,9 @@ function bindButtons() {
   $('#btn-take-start').addEventListener('click', () => renderTakeQ(0));
   $('#btn-res-create').addEventListener('click', openPack);
   $('#btn-board-share').addEventListener('click', () => {});
+  $('#btn-claim-open').addEventListener('click', openClaimFlow);
+  $('#btn-claim-apply').addEventListener('click', applyClaim);
+  $('#btn-claim-later').addEventListener('click', () => show('settings'));
 }
 
 async function boot() {
@@ -637,7 +861,7 @@ async function boot() {
     if (cfg && cfg.ok && cfg.bot_username) BOT = cfg.bot_username;
   } catch (e) {}
 
-  bindPackCards();
+  loadPacks();
   bindButtons();
   bindDonate();
 
@@ -670,9 +894,14 @@ function bindDonate() {
       b.textContent = 'Открываем счёт…';
       try {
         const data = await api('/api/donate', { amount });
-        const onClosed = (e) => {
+        const onClosed = async (e) => {
           tg.offEvent('invoiceClosed', onClosed);
-          if (e && e.status === 'paid') toast(`Спасибо! ${amount} ⭐ — ты лучший 💜`);
+          if (e && e.status === 'paid') {
+            try { await api('/api/payments/confirm', { payload: data.payload }); } catch (err) {}
+            toast('Спасибо! 💜');
+            await loadPacks();
+            await openClaimFlow();
+          }
         };
         tg.onEvent('invoiceClosed', onClosed);
         tg.openInvoice(data.invoice_link);

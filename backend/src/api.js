@@ -1,7 +1,7 @@
 'use strict';
 const { sql, upsertUser } = require('./db');
 const { validateInitData, json, level, escapeHtml, jparse } = require('./util');
-const { buildQuiz, getQuestions } = require('./questions');
+const { buildQuiz, getQuestions, PACKS, isAdultPack } = require('./questions');
 const { notifyQuizCompleted } = require('./notify');
 const { createInvoiceLink } = require('./tg');
 
@@ -53,7 +53,19 @@ async function quizCreate(req, res, body) {
     WHERE creator_id = ${user.id.toString()} AND key IS NOT NULL AND created_at > now() - interval '1 day'`;
   if (n >= 5) return json(res, 429, { ok: false, error: 'limit', message: 'Не больше 5 квизов в сутки. Качество важнее количества 😌' });
 
-  const pack = body.pack === 'party' ? 'party' : 'classic';
+  const pack = PACKS[body.pack] ? body.pack : 'classic';
+
+  // платный пак — проверяем доступ
+  if (PACKS[pack].price > 0) {
+    const [owned] = await sql`SELECT 1 FROM user_packs WHERE user_id = ${user.id.toString()} AND pack = ${pack}`;
+    if (!owned) {
+      return json(res, 402, {
+        ok: false, error: 'locked', pack,
+        message: `Пак «${PACKS[pack].title}» ещё не открыт 🔒`,
+      });
+    }
+  }
+
   const built = buildQuiz(pack);
   const { newId } = require('./util');
   const id = newId();
@@ -64,6 +76,117 @@ async function quizCreate(req, res, body) {
 
   const questions = getQuestions(built.q_ids).map((q, i) => ({ i, q: q.q, opts: q.opts }));
   return json(res, 200, { ok: true, quiz: { id, pack, questions, votes: built.votes } });
+}
+
+/** POST /api/packs — список паков с флагом доступа */
+async function packsList(req, res, body) {
+  const user = auth(body);
+  if (!user) return json(res, 401, { ok: false, error: 'auth' });
+  const rows = await sql`SELECT pack FROM user_packs WHERE user_id = ${user.id.toString()}`;
+  const owned = new Set(rows.map((r) => r.pack));
+  const packs = Object.values(PACKS).map((p) => ({
+    code: p.code, title: p.title, emoji: p.emoji, desc: p.desc,
+    price: p.price, owned: p.price === 0 || owned.has(p.code),
+    adult: isAdultPack(p.code),
+  }));
+  return json(res, 200, { ok: true, packs });
+}
+
+/** POST /api/pack/buy — счёт на открытие пака */
+async function packBuy(req, res, body) {
+  const user = auth(body);
+  if (!user) return json(res, 401, { ok: false, error: 'auth' });
+  const code = PACKS[body.pack] ? body.pack : null;
+  if (!code || PACKS[code].price === 0) return json(res, 400, { ok: false, error: 'bad_input' });
+
+  const [owned] = await sql`SELECT 1 FROM user_packs WHERE user_id = ${user.id.toString()} AND pack = ${code}`;
+  if (owned) return json(res, 200, { ok: true, already: true });
+
+  const payload = `pack:${user.id}:${code}:${Date.now()}`;
+  const link = await createInvoiceLink({
+    payload,
+    title: `Прознай: пак «${PACKS[code].title}» ${PACKS[code].emoji}`,
+    description: PACKS[code].desc + ' — открывается навсегда',
+    amount: PACKS[code].price,
+  });
+  if (!link.ok) return json(res, 500, { ok: false, error: 'invoice' });
+
+  await sql`INSERT INTO purchases (payload, user_id, quiz_id, stars, invoice_link)
+            VALUES (${payload}, ${user.id.toString()}, ${'pack:' + code}, ${PACKS[code].price}, ${link.result})
+            ON CONFLICT (payload) DO UPDATE SET invoice_link = ${link.result}`;
+  return json(res, 200, { ok: true, invoice_link: link.result, stars: PACKS[code].price, payload });
+}
+
+/** POST /api/quiz/delete — удалить свой квиз (и ответы) */
+async function quizDelete(req, res, body) {
+  const user = auth(body);
+  if (!user) return json(res, 401, { ok: false, error: 'auth' });
+  const { quiz_id } = body;
+  if (!quiz_id) return json(res, 400, { ok: false, error: 'bad_input' });
+  const [quiz] = await sql`SELECT id FROM quizzes WHERE id = ${quiz_id} AND creator_id = ${user.id.toString()}`;
+  if (!quiz) return json(res, 404, { ok: false, error: 'not_found' });
+  await sql`DELETE FROM answers WHERE quiz_id = ${quiz_id}`;
+  await sql`DELETE FROM quizzes WHERE id = ${quiz_id}`;
+  await sql`DELETE FROM notifs WHERE quiz_id = ${quiz_id}`;
+  return json(res, 200, { ok: true });
+}
+
+/** POST /api/donate/claim — забрать награду за донат */
+async function donateClaim(req, res, body) {
+  const user = auth(body);
+  if (!user) return json(res, 401, { ok: false, error: 'auth' });
+  const uid = user.id.toString();
+  const purchases = await sql`SELECT payload, stars FROM purchases
+    WHERE user_id = ${uid} AND payload LIKE 'donate:%' AND confirmed = true AND claimed = false`;
+  if (!purchases.length) return json(res, 400, { ok: false, error: 'nothing', message: 'Нет необработанных наград' });
+
+  const paidPacks = Object.values(PACKS).filter((p) => p.price > 0);
+  const owned = new Set((await sql`SELECT pack FROM user_packs WHERE user_id = ${uid}`).map((r) => r.pack));
+  const locked = paidPacks.filter((p) => !owned.has(p.code));
+  const chosen = Array.isArray(body.packs) ? body.packs.filter((c) => PACKS[c] && PACKS[c].price > 0) : [];
+  const granted = [];
+  let mecenat = false;
+
+  for (const p of purchases) {
+    await sql`UPDATE purchases SET claimed = true WHERE payload = ${p.payload}`;
+    if (p.stars >= 100) {
+      // меценат: все платные паки навсегда
+      for (const pp of paidPacks) {
+        await sql`INSERT INTO user_packs (user_id, pack) VALUES (${uid}, ${pp.code}) ON CONFLICT DO NOTHING`;
+      }
+      granted.push(...paidPacks.map((pp) => pp.code));
+      mecenat = true;
+      break;
+    }
+    const slots = p.stars >= 50 ? 2 : 1;
+    let give;
+    if (slots === 2 && chosen.length) {
+      give = chosen.filter((c) => !owned.has(c) && !granted.includes(c)).slice(0, slots);
+    } else {
+      give = locked.filter((c) => !granted.includes(c)).slice(0, slots);
+    }
+    if (!give.length && locked.length) give = [locked[locked.length - 1]];
+    for (const code of give) {
+      await sql`INSERT INTO user_packs (user_id, pack) VALUES (${uid}, ${code}) ON CONFLICT DO NOTHING`;
+      granted.push(code);
+    }
+  }
+
+  const unique = [...new Set(granted)];
+  return json(res, 200, {
+    ok: true,
+    granted: unique.map((c) => ({ code: c, title: PACKS[c].title, emoji: PACKS[c].emoji })),
+    mecenat,
+  });
+}
+
+/** POST /api/donate/status — есть ли необработанные награды */
+async function donateStatus(req, res, body) {
+  const user = auth(body);
+  if (!user) return json(res, 401, { ok: false, error: 'auth' });
+  const rows = await sql`SELECT payload, stars FROM purchases
+    WHERE user_id = ${user.id.toString()} AND payload LIKE 'donate:%' AND confirmed = true AND claimed = false`;
+  return json(res, 200, { ok: true, unclaimed: rows.length, amounts: rows.map((r) => r.stars) });
 }
 
 /** POST /api/quiz/key — создатель фиксирует свои ответы */
@@ -251,24 +374,43 @@ async function donate(req, res, body) {
     amount,
   });
   if (!link.ok) return json(res, 500, { ok: false, error: 'invoice' });
-  return json(res, 200, { ok: true, invoice_link: link.result, amount });
+  return json(res, 200, { ok: true, invoice_link: link.result, amount, payload });
 }
 
-/** POST /api/payments/confirm — оптимистичное подтверждение из Mini App */
+/** POST /api/payments/confirm — подтверждение из Mini App (reveal / pack / donate) */
 async function paymentsConfirm(req, res, body) {
   const user = auth(body);
   if (!user) return json(res, 401, { ok: false, error: 'auth' });
   const { payload } = body;
   const parts = String(payload || '').split(':');
-  if (parts[0] !== 'reveal' || parts.length !== 3 || parts[2] !== String(user.id)) {
-    return json(res, 400, { ok: false, error: 'bad_input' });
-  }
-  const [row] = await sql`SELECT id FROM purchases WHERE payload = ${payload} AND user_id = ${user.id.toString()}`;
-  if (!row) return json(res, 404, { ok: false, error: 'not_found' });
+  const uid = user.id.toString();
 
-  await sql`UPDATE purchases SET confirmed = true WHERE payload = ${payload}`;
-  await sql`UPDATE quizzes SET reveal_unlocked = true WHERE id = ${parts[1]}`;
-  return json(res, 200, { ok: true });
+  if (parts[0] === 'reveal' && parts.length === 3 && parts[2] === uid) {
+    const [row] = await sql`SELECT id FROM purchases WHERE payload = ${payload} AND user_id = ${uid}`;
+    if (!row) return json(res, 404, { ok: false, error: 'not_found' });
+    await sql`UPDATE purchases SET confirmed = true WHERE payload = ${payload}`;
+    await sql`UPDATE quizzes SET reveal_unlocked = true WHERE id = ${parts[1]}`;
+    return json(res, 200, { ok: true });
+  }
+
+  if (parts[0] === 'pack' && parts.length === 4 && parts[1] === uid) {
+    const code = PACKS[parts[2]] ? parts[2] : null;
+    if (!code || PACKS[code].price === 0) return json(res, 400, { ok: false, error: 'bad_input' });
+    const [row] = await sql`SELECT id FROM purchases WHERE payload = ${payload} AND user_id = ${uid}`;
+    if (!row) return json(res, 404, { ok: false, error: 'not_found' });
+    await sql`UPDATE purchases SET confirmed = true WHERE payload = ${payload}`;
+    await sql`INSERT INTO user_packs (user_id, pack) VALUES (${uid}, ${code}) ON CONFLICT DO NOTHING`;
+    return json(res, 200, { ok: true });
+  }
+
+  if (parts[0] === 'donate' && parts.length === 4 && parts[1] === uid) {
+    const [row] = await sql`SELECT id FROM purchases WHERE payload = ${payload} AND user_id = ${uid}`;
+    if (!row) return json(res, 404, { ok: false, error: 'not_found' });
+    await sql`UPDATE purchases SET confirmed = true, claimed = false WHERE payload = ${payload}`;
+    return json(res, 200, { ok: true });
+  }
+
+  return json(res, 400, { ok: false, error: 'bad_input' });
 }
 
 /** POST /api/settings */
@@ -287,9 +429,14 @@ module.exports = {
     'POST /api/quiz/key': quizKey,
     'POST /api/quiz/submit': quizSubmit,
     'POST /api/quiz/results': quizResults,
+    'POST /api/quiz/delete': quizDelete,
     'POST /api/quiz/reveal': quizReveal,
+    'POST /api/packs': packsList,
+    'POST /api/pack/buy': packBuy,
     'POST /api/payments/confirm': paymentsConfirm,
     'POST /api/donate': donate,
+    'POST /api/donate/claim': donateClaim,
+    'POST /api/donate/status': donateStatus,
     'POST /api/settings': settings,
   },
   quizTake,

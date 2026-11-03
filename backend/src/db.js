@@ -70,6 +70,14 @@ async function initSchema() {
       await sql`CREATE INDEX IF NOT EXISTS idx_notifs_user_time ON notifs(user_id, sent_at)`;
       // миграция: храним ссылку счёта, чтобы повторный тап не создавал новый счёт
       await sql`ALTER TABLE purchases ADD COLUMN IF NOT EXISTS invoice_link TEXT`;
+      await sql`ALTER TABLE purchases ADD COLUMN IF NOT EXISTS claimed BOOLEAN NOT NULL DEFAULT false`;
+      // купленные паки (или открытые за донат)
+      await sql`CREATE TABLE IF NOT EXISTS user_packs (
+        user_id BIGINT NOT NULL,
+        pack TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (user_id, pack)
+      )`;
     })().catch((e) => { schemaReady = null; throw e; });
   }
   return schemaReady;

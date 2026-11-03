@@ -63,15 +63,15 @@
           <div class="sample">«Что я делаю, когда нервничаю?»</div>
         </div>
 
-        <div class="stars-card mt12">
-          <div class="h3">Поддержать «Прознай» 💜</div>
-          <div class="sub small mt8" style="color:rgba(255,255,255,.85)">Проект бесплатный, но сервер и вопросы стоят денег. Если нравится — угости нас звёздами, это очень помогает.</div>
-          <div class="btn-row mt16">
-            <button class="btn btn-donate" data-amount="25">25 ⭐</button>
-            <button class="btn btn-donate" data-amount="50">50 ⭐</button>
-            <button class="btn btn-donate" data-amount="100">100 ⭐</button>
-          </div>
+      <div class="stars-card mt12">
+        <div class="h3">Поддержать «Прознай» 💜</div>
+        <div class="sub small mt8" style="color:rgba(255,255,255,.85)">Проект бесплатный, но сервер и вопросы стоят денег. Если нравится — угости нас звёздами, это очень помогает.</div>
+        <div class="btn-row mt16">
+          <button class="btn btn-donate" data-amount="25">25 ⭐</button>
+          <button class="btn btn-donate" data-amount="50">50 ⭐</button>
+          <button class="btn btn-donate" data-amount="100">100 ⭐</button>
         </div>
+        <div class="small center mt12" style="color:rgba(255,255,255,.65)">25 ⭐ — подарок-сюрприз · 50 ⭐ — два пака на выбор · 100 ⭐ — все паки навсегда 💎</div>
       </div>
     </div>
 
@@ -99,20 +99,17 @@
     <div class="screen" id="scr-pack">
       <div class="h2">Выбери вайб</div>
       <div class="sub mt8 mb12">От выбора зависит, о чём спросят друзей.</div>
-      <div class="pack-card sel" data-pack="classic">
-        <div class="emoji">🎯</div>
-        <div><div class="h3">Классика</div><div class="sub small">Быт, характер, привычки — для всех</div></div>
-      </div>
-      <div class="pack-card" data-pack="party">
-        <div class="emoji">🎉</div>
-        <div><div class="h3">Вечеринка</div><div class="sub small">Дерзко и весело — для своей тусовки</div></div>
-      </div>
-      <div class="pack-card soon">
-        <div class="emoji">💘</div>
-        <div><div class="h3">Романтика</div><div class="sub small">Для двоих</div></div>
-        <div class="badge-soon" style="margin-left:auto">Скоро</div>
-      </div>
+      <div id="pack-list"><div class="spin"></div></div>
       <button class="btn mt16" id="btn-pack-next">Собрать квиз ✨</button>
+    </div>
+
+    <!-- ЭКРАН: выбор награды за донат -->
+    <div class="screen" id="scr-claim">
+      <div class="h2">🎁 Твоя награда</div>
+      <div class="sub mt8 mb12" id="claim-sub">Выбери платные паки, которые открыть:</div>
+      <div id="claim-list"></div>
+      <button class="btn mt16" id="btn-claim-apply">Забрать награду ✨</button>
+      <button class="link-btn" id="btn-claim-later">Позже</button>
     </div>
 
     <!-- ЭКРАН: создание (7 вопросов о себе) -->
