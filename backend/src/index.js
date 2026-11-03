@@ -109,23 +109,6 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true, bot_username: BOT_USERNAME });
     }
 
-    // --- временная диагностика окружения (без секретов) ---
-    if (path === '/admin/dbg' && req.method === 'GET') {
-      if (!ADMIN_KEY || url.searchParams.get('key') !== ADMIN_KEY) {
-        res.writeHead(403); return res.end('forbidden');
-      }
-      const t = process.env.BOT_TOKEN || '';
-      return json(res, 200, {
-        ok: true,
-        token_len: t.length,
-        token_head: t.slice(0, 4),
-        token_tail: t.slice(-4),
-        has_colon: t.includes(':'),
-        username: BOT_USERNAME,
-        keys: Object.keys(process.env).filter((k) => !k.startsWith('npm_') && !k.startsWith('NODE_') && !['PATH', 'HOME', 'HOSTNAME', 'PWD', 'SHLVL', 'LANG', 'LS_COLORS', 'TERM'].includes(k)).sort(),
-      });
-    }
-
     // --- Mini App API ---
     if (path === '/api/quiz/take' && req.method === 'GET') {
       await initSchema();
