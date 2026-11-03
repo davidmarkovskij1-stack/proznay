@@ -285,8 +285,8 @@ const PACKS = {
   love: { code: 'love', title: 'Романтика', emoji: '💘', price: 0, desc: 'Симпатия, отношения, флирт по-доброму' },
   school: { code: 'school', title: 'Школа и универ', emoji: '🎒', price: 0, desc: 'Парта, пары, сессия — ностальгия' },
   truth: { code: 'truth', title: 'Горькая правда', emoji: '🌶', price: 99, desc: 'Вопросы, на которые честно ответят не все' },
-  roast: { code: 'roast', title: 'Roast себя', emoji: '🤡', price: 99, desc: 'Кринж, ляпы и самоирония — поржём над собой' },
-  adult: { code: 'adult', title: '18+', emoji: '🔞', price: 149, desc: 'Смелые вопросы для взрослых компаний' },
+  roast: { code: 'roast', title: 'Кринж и ляпы', emoji: '🤡', price: 99, desc: 'Смешные и стыдные моменты — поржём вместе' },
+  adult: { code: 'adult', title: 'После полуночи', emoji: '🌙', price: 149, desc: 'Смелые вопросы для взрослых компаний (только 18+)' },
 };
 
 const PACK_POOLS = {
