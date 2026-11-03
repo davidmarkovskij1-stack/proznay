@@ -67,7 +67,8 @@ async function api(path, body) {
 }
 
 function botLink(quizId) {
-  return `https://t.me/${BOT}/app?startapp=${quizId}`;
+  // deep link на бота с payload: получателю приходит вызов от бота
+  return `https://t.me/${BOT}?start=${quizId}`;
 }
 
 function shareTo(quizId, text) {

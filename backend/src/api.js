@@ -18,7 +18,7 @@ function shareUrl(quizId) {
 }
 
 const SHARE_TEXT = (name) =>
-  `${name || 'Я'} проверяет(ют), кто знает его лучше всех 👁 Пройди квиз за 1 минуту:`;
+  `Челлендж от ${name} 👁 Насколько хорошо ты знаешь ${name}? Пройди квиз за 1 минуту!`;
 
 /** POST /api/session */
 async function session(req, res, body) {
