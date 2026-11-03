@@ -113,7 +113,7 @@ const server = http.createServer(async (req, res) => {
     // --- Mini App API ---
     if (path === '/api/quiz/take' && req.method === 'GET') {
       await initSchema();
-      return quizTake(req, res, req.url);
+      return await quizTake(req, res, req.url);
     }
     const handler = handlers[`${req.method} ${path}`];
     if (handler) {
