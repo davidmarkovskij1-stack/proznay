@@ -14,7 +14,8 @@ function auth(body) {
 }
 
 function shareUrl(quizId) {
-  return `https://t.me/${BOT_USERNAME}/app?startapp=${quizId}`;
+  // deep link на бота: получателю приходит вызов от бота
+  return `https://t.me/${BOT_USERNAME}?start=${quizId}`;
 }
 
 const SHARE_TEXT = (name) =>
