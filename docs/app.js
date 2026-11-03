@@ -823,27 +823,30 @@ async function applyClaim() {
 
 /* ---------- старт ---------- */
 function bindButtons() {
-  $('#btn-create').addEventListener('click', openPack);
-  $('#btn-my-quizzes').addEventListener('click', () => openMy());
-  $('#btn-how').addEventListener('click', () => show('how'));
-  $('#btn-how-create').addEventListener('click', openPack);
-  $('#btn-pack-next').addEventListener('click', startCreate);
-  $('#btn-send-friends').addEventListener('click', () => {
+  const on = (id, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', fn);
+  };
+  on('btn-create', openPack);
+  on('btn-my-quizzes', () => openMy());
+  on('btn-how', () => show('how'));
+  on('btn-how-create', openPack);
+  on('btn-pack-next', startCreate);
+  on('btn-send-friends', () => {
     if (!state.shareInfo) return;
     shareTo(state.createQuiz.id, state.shareInfo.text);
   });
-  $('#btn-copy-link').addEventListener('click', async () => {
+  on('btn-copy-link', async () => {
     if (!state.shareInfo) return;
     const ok = await copyText(state.shareInfo.url);
     toast(ok ? 'Ссылка скопирована 🔗' : 'Не получилось скопировать');
   });
-  $('#btn-go-board').addEventListener('click', () => openBoard(state.createQuiz.id));
-  $('#btn-take-start').addEventListener('click', () => renderTakeQ(0));
-  $('#btn-res-create').addEventListener('click', openPack);
-  $('#btn-board-share').addEventListener('click', () => {});
-  $('#btn-claim-open').addEventListener('click', openClaimFlow);
-  $('#btn-claim-apply').addEventListener('click', applyClaim);
-  $('#btn-claim-later').addEventListener('click', () => show('settings'));
+  on('btn-go-board', () => openBoard(state.createQuiz.id));
+  on('btn-take-start', () => renderTakeQ(0));
+  on('btn-res-create', openPack);
+  on('btn-claim-open', openClaimFlow);
+  on('btn-claim-apply', applyClaim);
+  on('btn-claim-later', () => show('settings'));
 }
 
 async function boot() {
