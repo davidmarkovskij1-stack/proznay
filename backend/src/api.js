@@ -374,6 +374,9 @@ async function donate(req, res, body) {
     amount,
   });
   if (!link.ok) return json(res, 500, { ok: false, error: 'invoice' });
+  await sql`INSERT INTO purchases (payload, user_id, quiz_id, stars, invoice_link, confirmed, claimed)
+            VALUES (${payload}, ${user.id.toString()}, 'donate', ${amount}, ${link.result}, false, false)
+            ON CONFLICT (payload) DO UPDATE SET invoice_link = ${link.result}`;
   return json(res, 200, { ok: true, invoice_link: link.result, amount, payload });
 }
 
@@ -404,8 +407,12 @@ async function paymentsConfirm(req, res, body) {
   }
 
   if (parts[0] === 'donate' && parts.length === 4 && parts[1] === uid) {
+    const amount = Number(parts[2]) || 0;
     const [row] = await sql`SELECT id FROM purchases WHERE payload = ${payload} AND user_id = ${uid}`;
-    if (!row) return json(res, 404, { ok: false, error: 'not_found' });
+    if (!row) {
+      await sql`INSERT INTO purchases (payload, user_id, quiz_id, stars, confirmed, claimed)
+                VALUES (${payload}, ${uid}, 'donate', ${amount}, true, false)`;
+    }
     await sql`UPDATE purchases SET confirmed = true, claimed = false WHERE payload = ${payload}`;
     return json(res, 200, { ok: true });
   }
