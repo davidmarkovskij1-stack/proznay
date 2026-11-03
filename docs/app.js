@@ -192,7 +192,7 @@ function renderCreateQ(i) {
   q.opts.forEach((opt, oi) => {
     const b = document.createElement('button');
     b.className = 'opt';
-    b.innerHTML = `<span class="dot"></span><span>${esc(opt)}</span>`;
+    b.innerHTML = `<span class="dot">${oi + 1}</span><span>${esc(opt)}</span>`;
     b.addEventListener('click', () => {
       haptic('light');
       state.createAnswers[i] = oi;
@@ -232,7 +232,10 @@ async function openTakeIntro(quizId) {
     state.takeQuiz = data.quiz;
     state.takePicks = [];
     state.takeVotes = [];
-    $('#take-intro-name').textContent = data.quiz.creator_name || 'Друг';
+    const nm = data.quiz.creator_name || 'Друг';
+    $('#take-intro-name').textContent = nm;
+    const av = $('#take-intro-avatar');
+    if (av) av.textContent = String(nm).trim().charAt(0).toUpperCase() || '👁';
   } catch (e) {
     toast(e.message);
     show('welcome');
@@ -240,6 +243,7 @@ async function openTakeIntro(quizId) {
 }
 
 function renderTakeQ(i) {
+  show('take');
   const q = state.takeQuiz.questions[i];
   $('#take-count').textContent = `Вопрос ${i + 1} из 7`;
   $('#take-bar').style.width = `${(i / 7) * 100}%`;
@@ -249,7 +253,7 @@ function renderTakeQ(i) {
   q.opts.forEach((opt, oi) => {
     const b = document.createElement('button');
     b.className = 'opt';
-    b.innerHTML = `<span class="dot"></span><span>${esc(opt)}</span>`;
+    b.innerHTML = `<span class="dot">${oi + 1}</span><span>${esc(opt)}</span>`;
     b.addEventListener('click', () => {
       haptic('light');
       state.takePicks[i] = oi;
@@ -275,7 +279,7 @@ function renderVotesQ(i) {
   v.opts.forEach((opt, oi) => {
     const b = document.createElement('button');
     b.className = 'opt';
-    b.innerHTML = `<span class="dot"></span><span>${esc(opt)}</span>`;
+    b.innerHTML = `<span class="dot">${oi + 1}</span><span>${esc(opt)}</span>`;
     b.addEventListener('click', () => {
       haptic('light');
       state.takeVotes[i] = oi;
@@ -330,6 +334,24 @@ function renderResult(data, creatorName) {
     if (p < 1) requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
+
+  const confetti = $('#confetti');
+  if (confetti) {
+    confetti.innerHTML = '';
+    if (pct >= 57) {
+      const colors = ['#7c5cff', '#ff6ec7', '#4ade80', '#ffd166', '#7dd3fc'];
+      for (let i = 0; i < 28; i++) {
+        const s = document.createElement('i');
+        s.style.left = (50 + (Math.random() * 90 - 45)) + '%';
+        s.style.background = colors[i % colors.length];
+        s.style.animationDelay = (Math.random() * 0.9) + 's';
+        s.style.animationDuration = (1.6 + Math.random() * 1.4) + 's';
+        s.style.width = s.style.height = (5 + Math.random() * 6) + 'px';
+        confetti.appendChild(s);
+      }
+      setTimeout(() => { confetti.innerHTML = ''; }, 3600);
+    }
+  }
 
   const placeEl = $('#res-place');
   if (data.place && data.total) {
@@ -441,13 +463,16 @@ function renderBoard() {
         <div class="sub small mt8">Одно сообщение в чат — и результаты полетят</div>
       </div>`;
   } else {
+    const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
     html += `<div class="board-list mt12">` + q.leaderboard.map((r) => {
       const cls = r.place === 1 ? 'p1' : r.place === 2 ? 'p2' : r.place === 3 ? 'p3' : '';
+      const medal = medals[r.place] || '';
+      const initial = esc(String(r.name || '?').trim().charAt(0).toUpperCase() || '?');
       return `
         <div class="board-row ${cls}">
-          <div class="place">${r.place}</div>
+          <div class="avatar">${initial}</div>
           <div class="col">
-            <div class="name">${esc(r.name)}</div>
+            <div class="name">${medal ? medal + ' ' : ''}${esc(r.name)}</div>
             <div class="bar"><div style="width:${r.pct}%"></div></div>
           </div>
           <div class="pct">${r.pct}%</div>

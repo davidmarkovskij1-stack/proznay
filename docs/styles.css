@@ -357,3 +357,127 @@ body::before {
 .spread { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .hr { height: 1px; background: var(--border); margin: 16px 0; border: none; }
 .emoji-big { font-size: 46px; }
+
+/* ═══════════════ ВИЗУАЛЬНЫЙ АПГРЕЙД ═══════════════ */
+
+/* живой фон: плывущие световые пятна */
+body::before { animation: orbsMove 18s ease-in-out infinite alternate; }
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(35% 25% at 15% 20%, rgba(124, 92, 255, 0.13) 0%, transparent 70%),
+    radial-gradient(30% 22% at 90% 75%, rgba(255, 110, 199, 0.11) 0%, transparent 70%);
+  animation: orbsMove 24s ease-in-out infinite alternate-reverse;
+  pointer-events: none; z-index: 0;
+}
+@keyframes orbsMove {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-4%, 3%, 0) scale(1.08); }
+  100% { transform: translate3d(3%, -4%, 0) scale(1.04); }
+}
+
+/* логотип: пульсирующее свечение */
+.logo-mark {
+  animation: floaty 3.4s ease-in-out infinite, logoGlow 3s ease-in-out infinite;
+}
+@keyframes logoGlow {
+  0%, 100% { box-shadow: 0 18px 60px rgba(124, 92, 255, 0.45); }
+  50% { box-shadow: 0 18px 80px rgba(255, 110, 199, 0.55); }
+}
+
+/* кнопки: бегущий блик */
+.btn { position: relative; overflow: hidden; }
+.btn::before {
+  content: ''; position: absolute; top: 0; left: -70%; width: 40%; height: 100%;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.32), transparent);
+  animation: btnShine 3.4s ease-in-out infinite;
+}
+@keyframes btnShine { 0% { left: -70%; } 45%, 100% { left: 135%; } }
+.btn.ghost::before { display: none; }
+
+/* прогресс: полоска с живым бликом */
+.progress > div { position: relative; }
+.progress > div::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  animation: barShine 1.7s linear infinite;
+}
+@keyframes barShine { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+/* опции: номерные бейджи */
+.opt .dot {
+  display: flex; align-items: center; justify-content: center;
+  width: 25px; height: 25px; flex: 0 0 25px;
+  border-radius: 9px; border: 1.5px solid rgba(255, 255, 255, 0.22);
+  font-size: 12px; font-weight: 800; color: var(--dim);
+  background: rgba(255, 255, 255, 0.05);
+}
+.opt.sel .dot {
+  background: var(--grad); border-color: transparent; color: #fff;
+  box-shadow: 0 2px 12px rgba(124, 92, 255, 0.55);
+}
+
+/* аватар в вызове */
+.intro-avatar {
+  width: 92px; height: 92px; margin: 0 auto;
+  border-radius: 30px; background: var(--grad);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 42px; font-weight: 800; color: #fff;
+  box-shadow: 0 20px 60px rgba(124, 92, 255, 0.5);
+  animation: floaty 3.4s ease-in-out infinite;
+}
+
+/* чипы-фичи */
+.chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.chip-item {
+  font-size: 12.5px; font-weight: 700; color: var(--dim);
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 99px; padding: 7px 13px;
+}
+
+/* лидерборд: аватарки-инициалы */
+.board-row .avatar {
+  width: 40px; height: 40px; flex: 0 0 40px; border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 17px; color: #fff;
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.9), rgba(255, 110, 199, 0.75));
+}
+.board-row.p1 .avatar { background: var(--grad); box-shadow: 0 4px 18px rgba(255, 110, 199, 0.45); }
+
+/* конфетти на результате */
+.confetti { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.confetti i {
+  position: absolute; top: -12px; border-radius: 3px; opacity: 0;
+  animation: confettiFall 2.4s ease-in forwards;
+}
+@keyframes confettiFall {
+  0% { opacity: 1; transform: translateY(0) rotate(0deg) translateX(0); }
+  100% { opacity: 0; transform: translateY(430px) rotate(540deg) translateX(34px); }
+}
+
+/* кольцо результата: свечение */
+.ring-val { filter: drop-shadow(0 0 14px rgba(124, 92, 255, 0.65)); }
+.ring-pct { text-shadow: 0 0 42px rgba(124, 92, 255, 0.5); }
+
+/* заголовки с градиентным штрихом */
+.h2 { position: relative; }
+#scr-pack .h2::after, #scr-my .h2::after, #scr-settings .h2::after, #scr-board .h2::after {
+  content: ''; display: block; width: 44px; height: 4px; border-radius: 99px;
+  background: var(--grad); margin-top: 8px;
+}
+
+/* карточка: световая кромка сверху */
+.card { position: relative; overflow: hidden; }
+.card::before {
+  content: ''; position: absolute; top: 0; left: 12%; right: 12%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+}
+
+/* paywall-звёзды: пульс */
+.stars-card { position: relative; overflow: hidden; animation: cardPulse 3s ease-in-out infinite; }
+@keyframes cardPulse {
+  0%, 100% { box-shadow: 0 16px 44px rgba(124, 92, 255, 0.35); }
+  50% { box-shadow: 0 16px 60px rgba(255, 110, 199, 0.5); }
+}
