@@ -4,3 +4,5 @@ node_modules/
 .DS_Store
 Thumbs.db
 ".secrets.md"  
+"backend/test-e2e.js"  
+"backend/cleanup-*.js"  
