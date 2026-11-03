@@ -65,8 +65,9 @@ const server = http.createServer(async (req, res) => {
 
     // --- CORS preflight для Mini App ---
     if (path.startsWith('/api/') && req.method === 'OPTIONS') {
+      const origin = (() => { try { return new URL(APP_URL).origin; } catch { return ''; } })();
       res.writeHead(204, {
-        'Access-Control-Allow-Origin': APP_URL,
+        'Access-Control-Allow-Origin': origin,
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, X-Init-Data',
         'Access-Control-Max-Age': '86400',

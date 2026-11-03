@@ -57,12 +57,17 @@ function validateInitData(initData, botToken) {
   }
 }
 
+// CORS требует origin без пути: из APP_URL берём только scheme://host
+function appOrigin() {
+  try { return new URL(process.env.APP_URL || '').origin; } catch { return ''; }
+}
+
 function json(res, status, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
-    'Access-Control-Allow-Origin': process.env.APP_URL || '',
+    'Access-Control-Allow-Origin': appOrigin(),
     'Access-Control-Allow-Headers': 'Content-Type, X-Init-Data',
   });
   res.end(body);
