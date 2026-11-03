@@ -110,6 +110,14 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true, bot_username: BOT_USERNAME });
     }
 
+    // --- публичная статистика для welcome-воронки ---
+    if (path === '/api/stats' && req.method === 'GET') {
+      await initSchema();
+      const [q] = await sql`SELECT COUNT(*)::int AS n FROM quizzes WHERE key IS NOT NULL`;
+      const [a] = await sql`SELECT COUNT(*)::int AS n FROM answers`;
+      return json(res, 200, { ok: true, quizzes: q.n, answers: a.n });
+    }
+
     // --- Mini App API ---
     if (path === '/api/quiz/take' && req.method === 'GET') {
       await initSchema();

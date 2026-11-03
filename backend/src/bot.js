@@ -8,7 +8,7 @@ const APP_URL = process.env.APP_URL || '';
 function mainKeyboard() {
   return {
     inline_keyboard: [
-      [{ text: '🎮 Создать квиз', web_app: { url: `${APP_URL}?startapp=create` } }],
+      [{ text: '🎮 Создать квиз', web_app: { url: APP_URL } }],
       [{ text: '📊 Мои квизы', web_app: { url: `${APP_URL}?startapp=my` } }],
       [{ text: '💎 Поддержать проект', callback_data: 'donate' }],
       [{ text: '🔔 Уведомления', callback_data: 'notif' }, { text: 'ℹ️ Как это работает', callback_data: 'how' }],

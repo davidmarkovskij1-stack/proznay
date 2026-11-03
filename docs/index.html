@@ -45,12 +45,32 @@
           </svg>
         </div>
         <div class="h1">Прознай, кто знает тебя <span class="grad-text">лучше всех</span></div>
-        <div class="sub mt12">Квиз о тебе: друзья угадывают твои ответы — ты смотришь рейтинг. Одна минута, и лидерборд готов.</div>
+        <div class="sub mt12">Друзья проходят квиз о тебе — ты смотришь рейтинг и узнаёшь, что о тебе думают на самом деле.</div>
         <button class="btn" id="btn-create">🎮 Создать квиз</button>
         <button class="btn ghost" id="btn-my-quizzes">📊 Мои квизы</button>
         <button class="link-btn" id="btn-how">Как это работает →</button>
-        <div class="hero-badges">
-          <span>🆓 Бесплатно</span><span>⚡ 1 минута</span><span>🙈 Без регистрации</span>
+
+        <div class="card teaser mt16">
+          <div class="sub small">Так выглядит твоя карточка, которую увидят друзья:</div>
+          <div class="h3 mt8" id="wteaser">Тебя назвали капибарой 🦫</div>
+          <div class="sub small dim mt8" id="wstats">🔥 Загружаем статистику…</div>
+        </div>
+
+        <div class="card mt12">
+          <div class="h3">Примеры вопросов:</div>
+          <div class="sample mt8">«Моя идеальная пятница вечером?»</div>
+          <div class="sample">«Какой я в компании?»</div>
+          <div class="sample">«Что я делаю, когда нервничаю?»</div>
+        </div>
+
+        <div class="stars-card mt12">
+          <div class="h3">Поддержать «Прознай» 💜</div>
+          <div class="sub small mt8" style="color:rgba(255,255,255,.85)">Проект бесплатный, но сервер и вопросы стоят денег. Если нравится — угости нас звёздами, это очень помогает.</div>
+          <div class="btn-row mt16">
+            <button class="btn btn-donate" data-amount="25">25 ⭐</button>
+            <button class="btn btn-donate" data-amount="50">50 ⭐</button>
+            <button class="btn btn-donate" data-amount="100">100 ⭐</button>
+          </div>
         </div>
       </div>
     </div>
@@ -131,7 +151,6 @@
         <div class="h2 mt16" id="take-intro-name">…</div>
         <div class="sub mt12">бросил(а) тебе вызов.<br>Угадай, как ответил(а) бы он(а) — 7 вопросов.</div>
         <div class="chips mt16">
-          <span class="chip-item">⚡ 1 минута</span>
           <span class="chip-item">🎯 7 вопросов</span>
           <span class="chip-item">🏆 Попадёшь в лидерборд</span>
         </div>

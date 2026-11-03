@@ -222,13 +222,18 @@ async function finishCreate() {
 }
 
 /* ---------- прохождение ---------- */
-async function openTakeIntro(quizId) {
+/** Универсальное открытие по ссылке квиза: создатель → рейтинг, друг → тест */
+async function openStart(quizId) {
   show('take-intro');
   $('#take-intro-name').textContent = 'Загрузка…';
   try {
     const res = await fetchRetry(`${API}/api/quiz/take?id=${encodeURIComponent(quizId)}`, { method: 'GET' });
     const data = await res.json();
     if (!data.ok) throw new Error(data.message || 'Квиз не найден — возможно, ссылка устарела');
+    const meId = tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null;
+    if (meId && String(data.quiz.creator_id) === String(meId)) {
+      return openBoard(quizId);
+    }
     state.takeQuiz = data.quiz;
     state.takePicks = [];
     state.takeVotes = [];
@@ -236,6 +241,7 @@ async function openTakeIntro(quizId) {
     $('#take-intro-name').textContent = nm;
     const av = $('#take-intro-avatar');
     if (av) av.textContent = String(nm).trim().charAt(0).toUpperCase() || '👁';
+    show('take-intro');
   } catch (e) {
     toast(e.message);
     show('welcome');
@@ -574,7 +580,7 @@ async function refreshBoard() {
   } catch (e) {}
 }
 
-/* ---------- настройки + донат ---------- */
+/* ---------- настройки ---------- */
 async function openSettings() {
   show('settings');
   const sw = $('#sw-notif');
@@ -591,29 +597,7 @@ async function openSettings() {
       toast(e.message);
     }
   };
-
-  document.querySelectorAll('#scr-settings .btn-donate').forEach((b) => {
-    b.onclick = async () => {
-      const amount = Number(b.dataset.amount);
-      b.disabled = true;
-      const old = b.textContent;
-      b.textContent = 'Открываем счёт…';
-      try {
-        const data = await api('/api/donate', { amount });
-        const onClosed = (e) => {
-          tg.offEvent('invoiceClosed', onClosed);
-          if (e && e.status === 'paid') toast(`Спасибо! ${amount} ⭐ — ты лучший 💜`);
-        };
-        tg.onEvent('invoiceClosed', onClosed);
-        tg.openInvoice(data.invoice_link);
-      } catch (e) {
-        toast(e.message);
-      } finally {
-        b.disabled = false;
-        b.textContent = old;
-      }
-    };
-  });
+  // донат-кнопки привязаны глобально (bindDonate при старте)
 }
 
 /* ---------- старт ---------- */
@@ -655,6 +639,7 @@ async function boot() {
 
   bindPackCards();
   bindButtons();
+  bindDonate();
 
   show('splash');
   const sp = (tg.initDataUnsafe && tg.initDataUnsafe.start_param) ||
@@ -667,10 +652,67 @@ async function boot() {
     // без авторизации показываем welcome с ошибкой при действиях
   }
 
-  if (sp === 'create') openPack();
-  else if (sp === 'my') openMy();
-  else if (/^[A-Za-z0-9_-]{6,12}$/.test(sp)) openTakeIntro(sp);
+  // любое первое открытие — начальный экран (даже если пришли по «создать»)
+  if (sp === 'my') openMy();
+  else if (/^[A-Za-z0-9_-]{6,24}$/.test(sp)) openStart(sp);
   else show('welcome');
+
+  loadWelcomeExtras();
+}
+
+/* ---------- донат (все кнопки .btn-donate на любых экранах) ---------- */
+function bindDonate() {
+  document.querySelectorAll('.btn-donate').forEach((b) => {
+    b.onclick = async () => {
+      const amount = Number(b.dataset.amount);
+      b.disabled = true;
+      const old = b.textContent;
+      b.textContent = 'Открываем счёт…';
+      try {
+        const data = await api('/api/donate', { amount });
+        const onClosed = (e) => {
+          tg.offEvent('invoiceClosed', onClosed);
+          if (e && e.status === 'paid') toast(`Спасибо! ${amount} ⭐ — ты лучший 💜`);
+        };
+        tg.onEvent('invoiceClosed', onClosed);
+        tg.openInvoice(data.invoice_link);
+      } catch (e) {
+        toast(e.message);
+      } finally {
+        b.disabled = false;
+        b.textContent = old;
+      }
+    };
+  });
+}
+
+/* ---------- воронка на welcome: соцдоказательство + тизер-карусель ---------- */
+async function loadWelcomeExtras() {
+  try {
+    const res = await fetchRetry(`${API}/api/stats`, { method: 'GET' });
+    const s = await res.json();
+    if (s.ok) {
+      const el = $('#wstats');
+      if (el) el.textContent = `🔥 Уже создано ${s.quizzes} квизов · 💬 ${s.answers} ответов от друзей`;
+    }
+  } catch (e) {}
+
+  const teasers = [
+    'Тебя назвали капибарой 🦫',
+    'Твоя энергия: ураган 24/7 ⚡',
+    '3 друга считают тебя душой компании 💜',
+    'Твой вайб в чате: мем-канал в одном лице 😂',
+    'Суперспособность от друзей: творческий хаос 🎨',
+  ];
+  let ti = 0;
+  const t = $('#wteaser');
+  if (t) {
+    setInterval(() => {
+      ti = (ti + 1) % teasers.length;
+      t.style.opacity = 0;
+      setTimeout(() => { t.textContent = teasers[ti]; t.style.opacity = 1; }, 240);
+    }, 3400);
+  }
 }
 
 boot();
