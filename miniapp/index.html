@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a12">
+  <title>Прознай 👁</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 76 76'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c5cff'/%3E%3Cstop offset='1' stop-color='%23ff6ec7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='76' height='76' rx='24' fill='url(%23g)'/%3E%3Cpath d='M18 38c7-11 14-16 20-16s13 5 20 16c-7 11-14 16-20 16s-13-5-20-16z' fill='none' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='38' cy='38' r='7' fill='white'/%3E%3C/svg%3E">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#7c5cff"/>
+        <stop offset="100%" stop-color="#ff6ec7"/>
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <div id="app">
+
+    <!-- ЭКРАН: сплэш -->
+    <div class="screen" id="scr-splash">
+      <div class="center" style="padding-top: 34vh">
+        <div class="logo-mark" style="margin: 0 auto">
+          <svg viewBox="0 0 76 76" fill="none">
+            <path d="M18 38c7-11 14-16 20-16s13 5 20 16c-7 11-14 16-20 16s-13-5-20-16z" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="38" cy="38" r="7" fill="white"/>
+          </svg>
+        </div>
+        <div class="h1 mt24">Прознай</div>
+        <div class="sub mt8">Узнай, кто знает тебя лучше всех</div>
+      </div>
+    </div>
+
+    <!-- ЭКРАН: приветствие -->
+    <div class="screen" id="scr-welcome">
+      <div class="hero">
+        <div class="logo-mark">
+          <svg viewBox="0 0 76 76" fill="none">
+            <path d="M18 38c7-11 14-16 20-16s13 5 20 16c-7 11-14 16-20 16s-13-5-20-16z" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="38" cy="38" r="7" fill="white"/>
+          </svg>
+        </div>
+        <div class="h1">Прознай, кто знает тебя <span class="grad-text">лучше всех</span></div>
+        <div class="sub mt12">Квиз о тебе: друзья угадывают твои ответы — ты смотришь рейтинг. Одна минута, и лидерборд готов.</div>
+        <button class="btn" id="btn-create">🎮 Создать квиз</button>
+        <button class="btn ghost" id="btn-my-quizzes">📊 Мои квизы</button>
+        <button class="link-btn" id="btn-how">Как это работает →</button>
+        <div class="hero-badges">
+          <span>🆓 Бесплатно</span><span>⚡ 1 минута</span><span>🙈 Без регистрации</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ЭКРАН: как это работает -->
+    <div class="screen" id="scr-how">
+      <div class="h2 mb12">Как это работает</div>
+      <div class="card steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div><div class="h3">Ответь о себе</div><div class="sub small mt8">7 коротких вопросов — это твой «ключ». Никто его не видит.</div></div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div><div class="h3">Кинь друзьям</div><div class="sub small mt8">Одна кнопка — и квиз в любом чате. Друзья угадывают твои ответы.</div></div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div><div class="h3">Смотри рейтинг</div><div class="sub small mt8">Кто знает тебя на 100%, а кто просто делает вид 💜</div></div>
+        </div>
+      </div>
+      <button class="btn mt16" id="btn-how-create">Погнали 🚀</button>
+    </div>
+
+    <!-- ЭКРАН: выбор пака -->
+    <div class="screen" id="scr-pack">
+      <div class="h2">Выбери вайб</div>
+      <div class="sub mt8 mb12">От выбора зависит, о чём спросят друзей.</div>
+      <div class="pack-card sel" data-pack="classic">
+        <div class="emoji">🎯</div>
+        <div><div class="h3">Классика</div><div class="sub small">Быт, характер, привычки — для всех</div></div>
+      </div>
+      <div class="pack-card" data-pack="party">
+        <div class="emoji">🎉</div>
+        <div><div class="h3">Вечеринка</div><div class="sub small">Дерзко и весело — для своей тусовки</div></div>
+      </div>
+      <div class="pack-card soon">
+        <div class="emoji">💘</div>
+        <div><div class="h3">Романтика</div><div class="sub small">Для двоих</div></div>
+        <div class="badge-soon" style="margin-left:auto">Скоро</div>
+      </div>
+      <button class="btn mt16" id="btn-pack-next">Собрать квиз ✨</button>
+    </div>
+
+    <!-- ЭКРАН: создание (7 вопросов о себе) -->
+    <div class="screen" id="scr-create">
+      <div class="progress-row"><div class="qcount" id="create-count">Вопрос 1 из 7</div></div>
+      <div class="progress"><div id="create-bar" style="width:0%"></div></div>
+      <div class="h2 mt20" id="create-question">…</div>
+      <div class="sub small" style="margin-top:6px">Как ответил(а) бы ты:</div>
+      <div class="opts" id="create-opts"></div>
+    </div>
+
+    <!-- ЭКРАН: шаринг -->
+    <div class="screen" id="scr-share">
+      <div class="center">
+        <div class="emoji-big">🚀</div>
+        <div class="h2 mt12">Квиз готов!</div>
+        <div class="sub mt8">Осталось одно: отправить друзьям.<br>Чем больше пройдут — тем вкуснее рейтинг.</div>
+      </div>
+      <div class="share-card">
+        <div class="inner">
+          <div class="big-emoji">👁</div>
+          <div class="h3 mt12" id="share-name">Твой квиз ждёт</div>
+          <div class="sub small mt8">Пройди квиз обо мне — проверим, как хорошо ты меня знаешь</div>
+          <div class="brand">Прознай</div>
+        </div>
+      </div>
+      <button class="btn" id="btn-send-friends">📨 Отправить друзьям</button>
+      <button class="btn ghost" id="btn-copy-link">🔗 Скопировать ссылку</button>
+      <button class="link-btn" id="btn-go-board">Смотреть рейтинг →</button>
+    </div>
+
+    <!-- ЭКРАН: тейк-интро -->
+    <div class="screen" id="scr-take-intro">
+      <div class="center" style="padding-top: 8vh">
+        <div class="emoji-big">👁</div>
+        <div class="h2 mt16" id="take-intro-name">…</div>
+        <div class="sub mt12">бросил(а) тебе вызов.<br>Угадай, как ответил(а) бы он(а) — 7 вопросов.</div>
+        <div class="card mt24"><div class="sub small center">Плюс три анонимных вопроса о нём(ней) — ответы увидит только создатель квиза 🤫</div></div>
+      </div>
+      <button class="btn mt24" id="btn-take-start">Погнали 🚀</button>
+    </div>
+
+    <!-- ЭКРАН: прохождение -->
+    <div class="screen" id="scr-take">
+      <div class="progress-row"><div class="qcount" id="take-count">Вопрос 1 из 7</div></div>
+      <div class="progress"><div id="take-bar" style="width:0%"></div></div>
+      <div class="h2 mt20" id="take-question">…</div>
+      <div class="sub small" style="margin-top:6px">Как ответил(а) бы создатель:</div>
+      <div class="opts" id="take-opts"></div>
+    </div>
+
+    <!-- ЭКРАН: анонимные голосования -->
+    <div class="screen" id="scr-votes">
+      <div class="progress-row"><div class="qcount" id="votes-count">Анонимно 1 из 3</div></div>
+      <div class="progress"><div id="votes-bar" style="width:0%"></div></div>
+      <div class="h2 mt20" id="votes-question">…</div>
+      <div class="sub small" style="margin-top:6px">Твой ответ анонимный. Увидит только создатель:</div>
+      <div class="opts" id="votes-opts"></div>
+    </div>
+
+    <!-- ЭКРАН: результат -->
+    <div class="screen" id="scr-result">
+      <div class="center">
+        <div class="sub" style="font-weight:700">Твой результат</div>
+        <div class="ring-wrap">
+          <svg viewBox="0 0 190 190">
+            <circle class="ring-bg" cx="95" cy="95" r="84"></circle>
+            <circle class="ring-val" id="ring" cx="95" cy="95" r="84" stroke-dasharray="527.8" stroke-dashoffset="527.8"></circle>
+          </svg>
+          <div class="ring-center">
+            <div class="ring-pct"><span id="res-pct">0</span><span>%</span></div>
+            <div class="ring-lvl" id="res-lvl"></div>
+          </div>
+        </div>
+        <div class="h3" id="res-place"></div>
+        <div class="sub small mt8" id="res-hint"></div>
+      </div>
+      <div class="card mt24">
+        <div class="h3 center">А тебя знают лучше?</div>
+        <div class="sub small center mt8">Собери свой квиз за минуту — и брось вызов друзьям</div>
+        <button class="btn mt16" id="btn-res-create">🎮 Создать свой квиз</button>
+        <button class="btn ghost" id="btn-res-share">Поделиться результатом</button>
+      </div>
+    </div>
+
+    <!-- ЭКРАН: мои квизы -->
+    <div class="screen" id="scr-my">
+      <div class="h2 mb12">Мои квизы</div>
+      <div id="my-list"></div>
+    </div>
+
+    <!-- ЭКРАН: лидерборд -->
+    <div class="screen" id="scr-board">
+      <div class="spread">
+        <div>
+          <div class="h2" id="board-title">Рейтинг</div>
+          <div class="sub small" id="board-sub"></div>
+        </div>
+        <button class="btn small ghost" style="width:auto" id="btn-board-share">📨 Позвать ещё</button>
+      </div>
+      <div id="board-body"></div>
+    </div>
+
+    <!-- ЭКРАН: настройки -->
+    <div class="screen" id="scr-settings">
+      <div class="h2 mb12">Настройки</div>
+      <div class="toggle-row">
+        <div>
+          <div class="h3" style="font-size:16px">Уведомления</div>
+          <div class="sub small">Когда друзья проходят твой квиз. Редко и по делу.</div>
+        </div>
+        <div class="switch on" id="sw-notif"></div>
+      </div>
+      <div class="card mt12">
+        <div class="h3" style="font-size:16px">👁 Прознай</div>
+        <div class="sub small mt8">Квиз о тебе для твоих людей. Мы храним минимум данных и не показываем их никому: ответы друзей видны только тебе.</div>
+        <div class="sub small mt8">Оплата — Telegram Stars. Вопросы и идеи — боту в чат.</div>
+      </div>
+    </div>
+
+  </div>
+  <div id="toast"></div>
+  <script src="config.js"></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
