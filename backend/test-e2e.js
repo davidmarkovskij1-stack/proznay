@@ -227,6 +227,21 @@ async function get(path) {
   const whPro = await post('/api/whispers', { initData: friendInit });
   assert(whPro.whispers.some((w) => w.author !== null), 'Про раскрывает авторов полученных шептунков');
 
+  console.log('— 25b. профиль: аватар и шрифт сохраняются');
+  const pfAv = await post('/api/profile', { initData: friendInit, avatar: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/2wBDAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iiigD//2Q==', font: 'caveat' });
+  assert(pfAv.profile.font === 'caveat', 'шрифт сохранён');
+  assert(pfAv.profile.avatar.startsWith('data:image/jpeg'), 'аватар сохранён');
+  const frAv = await post('/api/friends', { initData: creatorInit });
+  assert(frAv.friends.some((f) => f.avatar && f.font === 'caveat'), 'друг видит аватар и шрифт');
+
+  console.log('— 25c. wauth: купить авторов шептунков → открыты');
+  const wb = await post('/api/wauth/buy', { initData: friendInit });
+  assert(String(wb.invoice_link).startsWith('https://t.me/'), 'wauth invoice');
+  await post('/api/payments/confirm', { initData: friendInit, payload: wb.payload });
+  const whW = await post('/api/whispers', { initData: friendInit });
+  assert(whW.wauth_unlocked === true, 'wauth открыт');
+  assert(whW.whispers.some((w) => w.author !== null), 'авторы видны после покупки');
+
   console.log('— 26. qotd: вопрос дня доступен');
   const qres = await fetch(API + '/api/qotd');
   const qd = await qres.json();

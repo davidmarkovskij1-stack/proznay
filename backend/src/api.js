@@ -507,8 +507,9 @@ async function friends(req, res, body) {
   const user = auth(body);
   if (!user) return json(res, 401, { ok: false, error: 'auth' });
   const uid = user.id.toString();
-  const [me] = await sql`SELECT pro_until FROM users WHERE id = ${uid}`;
+  const [me] = await sql`SELECT pro_until, wauthors_unlocked FROM users WHERE id = ${uid}`;
   const pro = !!(me && me.pro_until && new Date(me.pro_until) > new Date());
+  const wauthUnlocked = !!(me && (me.wauthors_unlocked || pro));
 
   const mine = await sql`
     SELECT u.id, u.name, u.color, u.bio, u.avatar, u.font, COUNT(*)::int AS plays, MAX(a.pct)::int AS best, MAX(a.created_at) AS last_at,
