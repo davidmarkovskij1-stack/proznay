@@ -572,10 +572,13 @@ async function whisperSend(req, res, body) {
   const uid = user.id.toString();
   if (!to || to === user.id) return json(res, 400, { ok: false, error: 'bad_input' });
 
-  // анти-спам: максимум 5 шептунков в сутки
+  // анти-спам: один шептунок конкретному другу в сутки + максимум 10 в сутки всего
   const [{ n }] = await sql`SELECT COUNT(*)::int AS n FROM whispers
     WHERE from_id = ${uid} AND created_at > now() - interval '1 day'`;
-  if (n >= 5) return json(res, 429, { ok: false, error: 'limit', message: 'Не больше 5 шептунков в сутки — секретность требует 🤫' });
+  if (n >= 10) return json(res, 429, { ok: false, error: 'limit', message: 'Не больше 10 шептунков в сутки — секретность требует 🤫' });
+  const [{ n: perTo }] = await sql`SELECT COUNT(*)::int AS n FROM whispers
+    WHERE from_id = ${uid} AND to_id = ${to.toString()} AND created_at > now() - interval '24 hours'`;
+  if (perTo > 0) return json(res, 429, { ok: false, error: 'limit', message: 'Ты уже шепнул(а) этому другу — повтори через сутки 🤫' });
 
   let text = typeof body.text === 'string' ? body.text.trim().slice(0, 140) : '';
   if (!text) return json(res, 400, { ok: false, error: 'bad_input', message: 'Напиши что-нибудь 🙂' });
