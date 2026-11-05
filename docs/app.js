@@ -1063,6 +1063,10 @@ async function openProfile() {
     renderProfilePreview();
   } catch (e) {
     $('#profile-preview').innerHTML = '<div class="sub">' + esc(e.message) + '</div>';
+    renderPfColors();
+    renderPfFonts();
+    renderPfAvatar();
+    renderProfilePreview();
   }
   const s2 = $('#btn-open-settings2');
   if (s2) s2.onclick = openSettings;
