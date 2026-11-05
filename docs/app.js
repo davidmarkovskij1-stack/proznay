@@ -5,7 +5,7 @@ const tg = window.Telegram.WebApp;
 const API = window.PROZNAY_API_URL;
 let BOT = window.PROZNAY_BOT_USERNAME || 'proznay_bot';
 
-/* ---------- звуки (WebAudio, мягкие и синтезированные) ---------- */
+/* ---------- звуки (WebAudio — мягкие «колокольчики») ---------- */
 const SFX = (() => {
   let ctx = null;
   let enabled = localStorage.getItem('pzn_sound') !== 'off';
@@ -14,29 +14,28 @@ const SFX = (() => {
     if (ctx.state === 'suspended') ctx.resume();
     return ctx;
   }
-  function tone(freq, dur, type, vol, delay) {
+  // чистая нота с экспоненциальным затуханием — звучит как мягкий колокольчик
+  function bell(freq, dur, vol, delay) {
     const c = ac();
     const o = c.createOscillator();
     const g = c.createGain();
-    o.type = type || 'sine';
+    o.type = 'sine';
     o.frequency.value = freq;
     const t0 = c.currentTime + (delay || 0);
-    // мягкая атака, плато, плавный спад — звук «телесный», не писк
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.linearRampToValueAtTime(vol, t0 + 0.02);
-    g.gain.setValueAtTime(vol, t0 + Math.max(0.02, dur * 0.45));
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.018);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g).connect(c.destination);
     o.start(t0);
-    o.stop(t0 + dur + 0.08);
+    o.stop(t0 + dur + 0.05);
   }
   const sounds = {
-    tap: () => tone(620, 0.09, 'sine', 0.14),
-    select: () => { tone(660, 0.08, 'sine', 0.15); tone(830, 0.11, 'sine', 0.13, 0.055); },
-    ok: () => { tone(523, 0.14, 'sine', 0.17); tone(784, 0.18, 'sine', 0.15, 0.09); },
-    win: () => { tone(523, 0.14, 'sine', 0.17); tone(659, 0.14, 'sine', 0.16, 0.1); tone(784, 0.26, 'sine', 0.17, 0.2); tone(1047, 0.3, 'sine', 0.13, 0.32); },
-    send: () => { tone(494, 0.09, 'sine', 0.14); tone(988, 0.14, 'sine', 0.13, 0.07); },
-    coin: () => { tone(988, 0.12, 'triangle', 0.16); tone(1319, 0.2, 'triangle', 0.15, 0.08); tone(1568, 0.22, 'triangle', 0.12, 0.16); },
+    tap: () => bell(740, 0.16, 0.11),
+    select: () => { bell(784, 0.14, 0.12); bell(1047, 0.18, 0.1, 0.06); },
+    ok: () => { bell(523, 0.22, 0.13); bell(784, 0.26, 0.11, 0.1); },
+    win: () => { bell(523, 0.2, 0.13); bell(659, 0.2, 0.12, 0.11); bell(784, 0.24, 0.12, 0.22); bell(1047, 0.36, 0.11, 0.33); },
+    send: () => { bell(494, 0.16, 0.12); bell(988, 0.22, 0.11, 0.08); },
+    coin: () => { bell(988, 0.18, 0.12); bell(1319, 0.22, 0.11, 0.09); bell(1568, 0.26, 0.1, 0.18); },
   };
   return {
     play(kind) { if (!enabled) return; try { (sounds[kind] || sounds.tap)(); } catch (e) {} },
@@ -872,7 +871,7 @@ function renderFriends(data) {
           <div class="sub">${f.plays} ${plural(f.plays, 'квиз', 'квиза', 'квизов')} · лучший ${f.best}%</div>
         </div>
         <div class="fw-actions">
-          ${f.quiz_id ? '<button class="btn small ghost fw-play" data-quiz="' + esc(f.quiz_id) + '">▶️ Пройти</button>' : ''}
+          ${f.quiz_id ? '<button class="btn small fw-play btn-ghost-solid" data-quiz="' + esc(f.quiz_id) + '">▶️ Пройти</button>' : ''}
           <button class="btn small ghost fw-btn" data-id="${f.id}" data-name="${esc(f.name)}">🤫 Шепнуть</button>
         </div>
       </div>`).join('');
