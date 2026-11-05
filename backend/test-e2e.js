@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 
 const API = 'https://proznay.onrender.com';
-const BOT_TOKEN = process.env.BOT_TOKEN || '9137322570:AAGUVEQ0Z3Z6Y4Nwxi6VH6kHtJ6TjgUds7A';
+const BOT_TOKEN = process.env.BOT_TOKEN || '9223782786:AAGYeXvxpc8rDJeELR_3Gkvx5of5LqzAwP8';
 const CREATOR_ID = 900001, FRIEND_ID = 900002;
 
 function makeInitData(userId, firstName) {
