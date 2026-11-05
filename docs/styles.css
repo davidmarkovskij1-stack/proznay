@@ -646,7 +646,8 @@ textarea.p-input { resize: none; }
 .friend-row .meta { flex: 1; min-width: 0; }
 .friend-row .title { font-weight: 700; font-size: 15px; }
 .friend-row .sub { font-size: 12.5px; color: var(--dim); }
-.fw-actions { display: flex; gap: 6px; }
+.fw-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+.fw-actions .btn { flex: 1 0 auto; min-width: 86px; justify-content: center; text-align: center; white-space: nowrap; }
 .fw-actions .btn { padding: 8px 12px; font-size: 13px; border-radius: 11px; }
 
 /* soon-пак: мутный и некликабельный */

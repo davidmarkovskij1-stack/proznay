@@ -21,20 +21,22 @@ const SFX = (() => {
     o.type = type || 'sine';
     o.frequency.value = freq;
     const t0 = c.currentTime + (delay || 0);
+    // мягкая атака, плато, плавный спад — звук «телесный», не писк
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.linearRampToValueAtTime(vol || 0.06, t0 + 0.012);
+    g.gain.linearRampToValueAtTime(vol, t0 + 0.02);
+    g.gain.setValueAtTime(vol, t0 + Math.max(0.02, dur * 0.45));
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g).connect(c.destination);
     o.start(t0);
-    o.stop(t0 + dur + 0.05);
+    o.stop(t0 + dur + 0.08);
   }
   const sounds = {
-    tap: () => tone(520, 0.07, 'sine', 0.05),
-    select: () => { tone(590, 0.07, 'sine', 0.055); tone(740, 0.09, 'sine', 0.05, 0.05); },
-    ok: () => { tone(523, 0.12, 'sine', 0.07); tone(659, 0.14, 'sine', 0.06, 0.08); },
-    win: () => { tone(523, 0.12, 'sine', 0.07); tone(659, 0.12, 'sine', 0.07, 0.09); tone(784, 0.22, 'sine', 0.08, 0.18); },
-    send: () => { tone(440, 0.08, 'sine', 0.05); tone(880, 0.12, 'sine', 0.06, 0.06); },
-    coin: () => { tone(988, 0.1, 'triangle', 0.055); tone(1319, 0.16, 'triangle', 0.055, 0.07); },
+    tap: () => tone(620, 0.09, 'sine', 0.14),
+    select: () => { tone(660, 0.08, 'sine', 0.15); tone(830, 0.11, 'sine', 0.13, 0.055); },
+    ok: () => { tone(523, 0.14, 'sine', 0.17); tone(784, 0.18, 'sine', 0.15, 0.09); },
+    win: () => { tone(523, 0.14, 'sine', 0.17); tone(659, 0.14, 'sine', 0.16, 0.1); tone(784, 0.26, 'sine', 0.17, 0.2); tone(1047, 0.3, 'sine', 0.13, 0.32); },
+    send: () => { tone(494, 0.09, 'sine', 0.14); tone(988, 0.14, 'sine', 0.13, 0.07); },
+    coin: () => { tone(988, 0.12, 'triangle', 0.16); tone(1319, 0.2, 'triangle', 0.15, 0.08); tone(1568, 0.22, 'triangle', 0.12, 0.16); },
   };
   return {
     play(kind) { if (!enabled) return; try { (sounds[kind] || sounds.tap)(); } catch (e) {} },
@@ -163,6 +165,11 @@ async function copyText(text) {
 
 /* ---------- навигация ---------- */
 const BACK_MAP = {
+  'welcome': () => tg.close(),
+  'friends': () => tg.close(),
+  'whispers': () => tg.close(),
+  'my': () => tg.close(),
+  'profile': () => tg.close(),
   'how': () => show('welcome'),
   'pack': () => show('welcome'),
   'create': () => show('pack'),
@@ -191,8 +198,8 @@ function show(id) {
 
   const back = BACK_MAP[id];
   try {
-    if (back) tg.BackButton.show();
-    else tg.BackButton.hide();
+    // системная стрелка «назад» видна всегда и всегда ведёт назад
+    tg.BackButton.show();
   } catch (e) {}
 }
 
