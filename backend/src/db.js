@@ -75,9 +75,13 @@ async function initSchema() {
       await sql`ALTER TABLE answers ADD COLUMN IF NOT EXISTS whisper TEXT`;
       // подписка Про+
       await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS pro_until TIMESTAMPTZ`;
+      // покупка раскрытия авторов шептунков
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS wauthors_unlocked BOOLEAN NOT NULL DEFAULT false`;
       // редактируемый профиль
       await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT`;
       await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS color TEXT`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS font TEXT`;
       // личные шептунки между друзьями (общий раздел «Шептунки»)
       await sql`CREATE TABLE IF NOT EXISTS whispers (
         id SERIAL PRIMARY KEY,

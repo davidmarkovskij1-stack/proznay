@@ -8,6 +8,7 @@ const { createInvoiceLink, sendMessage } = require('./tg');
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const BOT_USERNAME = process.env.BOT_USERNAME || '';
 const REVEAL_STARS = 99;
+const WAUTH_STARS = 29;
 
 function auth(body) {
   return validateInitData(body && body.initData, BOT_TOKEN);
@@ -75,8 +76,8 @@ async function quizCreate(req, res, body) {
   // не даём плодить много квизов подряд (Про+ — 20 в сутки)
   const [{ n }] = await sql`SELECT COUNT(*)::int AS n FROM quizzes
     WHERE creator_id = ${user.id.toString()} AND key IS NOT NULL AND created_at > now() - interval '1 day'`;
-  const limit = proActive ? 20 : 5;
-  if (n >= limit) return json(res, 429, { ok: false, error: 'limit', message: proActive ? 'Даже Про+ не безграничен — 20 квизов в сутки 😌' : 'Не больше 5 квизов в сутки. Качество важнее количества 😌' });
+  const limit = proActive ? 20 : 2;
+  if (n >= limit) return json(res, 429, { ok: false, error: 'limit', message: proActive ? 'Даже Про+ не безграничен — 20 квизов в сутки 😌' : 'Максимум 2 квиза в сутки. Больше — с 💎 Про+ (Настройки)' });
 
   // исключаем вопросы из последних 3 квизов — без повторов
   const recent = await sql`SELECT q_ids FROM quizzes
@@ -471,6 +472,14 @@ async function paymentsConfirm(req, res, body) {
     return json(res, 200, { ok: true });
   }
 
+  if (parts[0] === 'wauth' && parts.length === 3 && parts[1] === uid) {
+    const [row] = await sql`SELECT id FROM purchases WHERE payload = ${payload} AND user_id = ${uid}`;
+    if (!row) return json(res, 404, { ok: false, error: 'not_found' });
+    await sql`UPDATE purchases SET confirmed = true WHERE payload = ${payload}`;
+    await sql`UPDATE users SET wauthors_unlocked = true WHERE id = ${uid}`;
+    return json(res, 200, { ok: true });
+  }
+
   return json(res, 400, { ok: false, error: 'bad_input' });
 }
 
@@ -502,21 +511,21 @@ async function friends(req, res, body) {
   const pro = !!(me && me.pro_until && new Date(me.pro_until) > new Date());
 
   const mine = await sql`
-    SELECT u.id, u.name, u.color, COUNT(*)::int AS plays, MAX(a.pct)::int AS best, MAX(a.created_at) AS last_at,
+    SELECT u.id, u.name, u.color, u.bio, u.avatar, u.font, COUNT(*)::int AS plays, MAX(a.pct)::int AS best, MAX(a.created_at) AS last_at,
            (SELECT q2.id FROM quizzes q2 WHERE q2.creator_id = u.id AND q2.key IS NOT NULL ORDER BY q2.created_at DESC LIMIT 1) AS quiz_id
     FROM answers a
     JOIN quizzes q ON q.id = a.quiz_id
     JOIN users u ON u.id = a.taker_id
     WHERE q.creator_id = ${uid} AND a.taker_id <> ${uid}
-    GROUP BY u.id, u.name, u.color`;
+    GROUP BY u.id, u.name, u.color, u.bio, u.avatar, u.font`;
   const theirs = await sql`
-    SELECT u.id, u.name, u.color, COUNT(*)::int AS plays, MAX(a.pct)::int AS best, MAX(a.created_at) AS last_at,
+    SELECT u.id, u.name, u.color, u.bio, u.avatar, u.font, COUNT(*)::int AS plays, MAX(a.pct)::int AS best, MAX(a.created_at) AS last_at,
            (SELECT q2.id FROM quizzes q2 WHERE q2.creator_id = u.id AND q2.key IS NOT NULL ORDER BY q2.created_at DESC LIMIT 1) AS quiz_id
     FROM answers a
     JOIN quizzes q ON q.id = a.quiz_id
     JOIN users u ON u.id = q.creator_id
     WHERE a.taker_id = ${uid} AND q.creator_id <> ${uid}
-    GROUP BY u.id, u.name, u.color`;
+    GROUP BY u.id, u.name, u.color, u.bio, u.avatar, u.font`;
 
   const map = new Map();
   for (const r of [...mine, ...theirs]) {
@@ -527,10 +536,19 @@ async function friends(req, res, body) {
       prev.last_at = new Date(prev.last_at) > new Date(r.last_at) ? prev.last_at : r.last_at;
       if (!prev.quiz_id && r.quiz_id) prev.quiz_id = r.quiz_id;
     } else {
-      map.set(r.id.toString(), { id: r.id, name: r.name, color: r.color || '#7c5cff', plays: r.plays, best: r.best || 0, last_at: r.last_at, quiz_id: r.quiz_id || null });
+      map.set(r.id.toString(), { id: r.id, name: r.name, color: r.color || '#7c5cff', bio: r.bio || '', avatar: r.avatar || '', font: r.font || 'default', plays: r.plays, best: r.best || 0, last_at: r.last_at, quiz_id: r.quiz_id || null });
     }
   }
   const friends = [...map.values()].sort((a, b) => new Date(b.last_at) - new Date(a.last_at));
+
+  // все активные квизы друзей — для кнопки «Пройти»
+  const friendQuizzes = await sql`
+    SELECT q.id, q.pack, q.created_at, q.creator_id, u.name AS creator_name, u.color AS creator_color, u.font AS creator_font
+    FROM quizzes q
+    JOIN users u ON u.id = q.creator_id
+    WHERE q.key IS NOT NULL AND q.creator_id <> ${uid}
+    ORDER BY q.created_at DESC
+    LIMIT 50`;
 
   const [qcnt] = await sql`SELECT COUNT(*)::int AS n FROM quizzes WHERE creator_id = ${uid} AND key IS NOT NULL`;
   const [tot] = await sql`SELECT COUNT(*)::int AS n, COALESCE(AVG(a.pct), 0) AS avg FROM answers a JOIN quizzes q ON q.id = a.quiz_id WHERE q.creator_id = ${uid}`;
@@ -546,12 +564,14 @@ async function friends(req, res, body) {
     id: w.id,
     text: w.text,
     created_at: w.created_at,
-    author: pro ? (w.from_name || 'Друзья') : null,
+    author: wauthUnlocked ? (w.from_name || 'Друзья') : null,
   }));
 
   return json(res, 200, {
     ok: true,
     pro,
+    wauth_unlocked: wauthUnlocked,
+    wauth_price: WAUTH_STARS,
     profile: {
       quizzes: qcnt.n,
       takers: tot.n,
@@ -560,6 +580,15 @@ async function friends(req, res, body) {
       bestPct: best ? best.pct : null,
     },
     friends,
+    friend_quizzes: friendQuizzes.map((q) => ({
+      id: q.id,
+      pack: q.pack,
+      created_at: q.created_at,
+      creator_id: q.creator_id,
+      creator_name: q.creator_name,
+      creator_color: q.creator_color || '#7c5cff',
+      creator_font: q.creator_font || 'default',
+    })),
     inbox: inboxOut,
   });
 }
@@ -592,29 +621,41 @@ async function whisperSend(req, res, body) {
   return json(res, 200, { ok: true });
 }
 
-/** POST /api/profile — получить или обновить профиль (имя, цвет, био) */
+/** POST /api/profile — получить или обновить профиль (имя, цвет, био, аватар, шрифт) */
+const PROFILE_FONTS = ['default', 'caveat', 'marck', 'russo', 'comfortaa', 'yeseva', 'amatic'];
 async function profile(req, res, body) {
   const user = auth(body);
   if (!user) return json(res, 401, { ok: false, error: 'auth' });
   const uid = user.id.toString();
 
   // обновление профиля (параметризованный запрос — безопасно)
-  const [cur] = await sql`SELECT name, color, bio FROM users WHERE id = ${uid}`;
-  if (body.name !== undefined || body.bio !== undefined || body.color !== undefined) {
+  const [cur] = await sql`SELECT name, color, bio, avatar, font FROM users WHERE id = ${uid}`;
+  if (body.name !== undefined || body.bio !== undefined || body.color !== undefined || body.avatar !== undefined || body.font !== undefined) {
     const name = body.name !== undefined ? String(body.name).trim().slice(0, 32) : (cur.name || 'Друг');
     const bio = body.bio !== undefined ? String(body.bio).trim().slice(0, 120) : (cur.bio || '');
     const color = body.color !== undefined && /^#[0-9a-fA-F]{6}$/.test(String(body.color)) ? String(body.color) : (cur.color || '#7c5cff');
+    let avatar = cur.avatar || '';
+    if (body.avatar !== undefined) {
+      // аватар: только data:image/jpeg, максимум 200KB
+      if (body.avatar === '') avatar = '';
+      else if (typeof body.avatar === 'string' && body.avatar.startsWith('data:image/jpeg;base64,') && body.avatar.length <= 200000) {
+        avatar = body.avatar;
+      }
+    }
+    const font = body.font !== undefined && PROFILE_FONTS.includes(body.font) ? body.font : (cur.font || 'default');
     if (!name) return json(res, 400, { ok: false, error: 'bad_input', message: 'Имя не может быть пустым' });
-    await sql`UPDATE users SET name = ${name}, bio = ${bio}, color = ${color} WHERE id = ${uid}`;
+    await sql`UPDATE users SET name = ${name}, bio = ${bio}, color = ${color}, avatar = ${avatar}, font = ${font} WHERE id = ${uid}`;
   }
 
-  const [row] = await sql`SELECT name, color, bio FROM users WHERE id = ${uid}`;
+  const [row] = await sql`SELECT name, color, bio, avatar, font FROM users WHERE id = ${uid}`;
   return json(res, 200, {
     ok: true,
     profile: {
       name: row.name || 'Друг',
       color: row.color || '#7c5cff',
       bio: row.bio || '',
+      avatar: row.avatar || '',
+      font: row.font || 'default',
     },
   });
 }
@@ -659,8 +700,9 @@ async function whispers(req, res, body) {
   if (!user) return json(res, 401, { ok: false, error: 'auth' });
   const uid = user.id.toString();
 
-  const [me] = await sql`SELECT pro_until FROM users WHERE id = ${uid}`;
+  const [me] = await sql`SELECT pro_until, wauthors_unlocked FROM users WHERE id = ${uid}`;
   const pro = !!(me && me.pro_until && new Date(me.pro_until) > new Date());
+  const wauthUnlocked = !!(me && (me.wauthors_unlocked || pro));
 
   const rows = await sql`
     SELECT w.id, w.from_id, w.to_id, w.text, w.created_at, w.read,
@@ -676,16 +718,41 @@ async function whispers(req, res, body) {
   return json(res, 200, {
     ok: true,
     pro,
+    wauth_unlocked: wauthUnlocked,
+    wauth_price: WAUTH_STARS,
     whispers: rows.map((r) => ({
       id: r.id,
       text: r.text,
       created_at: r.created_at,
       fromMe: r.from_id === uid,
-      author: pro ? (r.from_id === uid ? 'Я' : (r.from_name || 'Друзья')) : null,
+      author: (pro || wauthUnlocked) ? (r.from_id === uid ? 'Я' : (r.from_name || 'Друзья')) : null,
       authorColor: r.from_id === uid ? '#7c5cff' : (r.from_color || '#7c5cff'),
       toUser: r.to_id === uid ? 'Мне' : (r.to_name || 'Друзья'),
     })),
   });
+}
+
+/** POST /api/wauth/buy — раскрыть авторов всех шептунков (29 ⭐, навсегда) */
+async function wauthBuy(req, res, body) {
+  const user = auth(body);
+  if (!user) return json(res, 401, { ok: false, error: 'auth' });
+  const uid = user.id.toString();
+  const [me] = await sql`SELECT wauthors_unlocked, pro_until FROM users WHERE id = ${uid}`;
+  if ((me && me.wauthors_unlocked) || (me && me.pro_until && new Date(me.pro_until) > new Date())) {
+    return json(res, 200, { ok: true, already: true });
+  }
+  const payload = `wauth:${user.id}:${Date.now()}`;
+  const link = await createInvoiceLink({
+    payload,
+    title: 'Прознай: кто шепнул? 👀',
+    description: 'Открыть авторов всех шептунков навсегда',
+    amount: WAUTH_STARS,
+  });
+  if (!link.ok) return json(res, 500, { ok: false, error: 'invoice' });
+  await sql`INSERT INTO purchases (payload, user_id, quiz_id, stars, invoice_link)
+            VALUES (${payload}, ${uid}, 'wauth', ${WAUTH_STARS}, ${link.result})
+            ON CONFLICT (payload) DO UPDATE SET invoice_link = ${link.result}`;
+  return json(res, 200, { ok: true, invoice_link: link.result, payload, stars: WAUTH_STARS });
 }
 
 /** GET /api/qotd — бесплатный «Вопрос дня» (стабильный по дате, без авторизации) */
@@ -713,6 +780,7 @@ module.exports = {
     'POST /api/donate/claim': donateClaim,
     'POST /api/donate/status': donateStatus,
     'POST /api/sub/buy': subBuy,
+    'POST /api/wauth/buy': wauthBuy,
     'POST /api/friends': friends,
     'POST /api/whisper/send': whisperSend,
     'POST /api/settings': settings,

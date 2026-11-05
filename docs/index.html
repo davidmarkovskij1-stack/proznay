@@ -6,6 +6,9 @@
   <meta name="theme-color" content="#0a0a12">
   <title>Прознай 👁</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Comfortaa:wght@600&family=Marck+Script&family=Russo+One&family=Amatic+SC:wght@700&family=Yeseva+One&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 76 76'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c5cff'/%3E%3Cstop offset='1' stop-color='%23ff6ec7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='76' height='76' rx='24' fill='url(%23g)'/%3E%3Cpath d='M18 38c7-11 14-16 20-16s13 5 20 16c-7 11-14 16-20 16s-13-5-20-16z' fill='none' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='38' cy='38' r='7' fill='white'/%3E%3C/svg%3E">
 </head>
@@ -293,15 +296,33 @@
       <div class="h2 mb12">Профиль</div>
       <div class="card profile-card" id="profile-preview"></div>
       <div class="card mt12">
-        <div class="sub small">Имя (как тебя видят друзья):</div>
+        <div class="sub small">Аватарка (круглая, сжимается сама):</div>
+        <div class="pf-avatar-row mt8">
+          <div class="profile-avatar" id="pf-avatar-prev" style="background:var(--grad)">👁</div>
+          <div class="pf-avatar-btns">
+            <button class="btn ghost small" id="btn-pf-photo">📷 Выбрать фото</button>
+            <button class="link-btn" id="btn-pf-photo-del" style="padding:6px">Убрать фото</button>
+          </div>
+          <input type="file" id="pf-photo-input" accept="image/*" style="display:none">
+        </div>
+        <div class="sub small mt12">Шрифт твоего имени (работает с русским!):</div>
+        <div class="font-list mt8" id="pf-fonts"></div>
+        <div class="sub small mt12">Имя (как тебя видят друзья):</div>
         <input class="p-input mt8" id="pf-name" maxlength="24" placeholder="Твоё имя">
         <div class="sub small mt12">Описание (видно во вкладке Друзья):</div>
         <textarea class="p-input mt8" id="pf-bio" maxlength="120" rows="2" placeholder="Пара слов о себе…"></textarea>
-        <div class="sub small mt12">Цвет аватарки:</div>
+        <div class="sub small mt12">Цвет аватарки (если без фото):</div>
         <div class="swatches mt8" id="pf-colors"></div>
         <button class="btn mt16" id="btn-pf-save">💾 Сохранить профиль</button>
       </div>
       <button class="link-btn mt8" id="btn-open-settings2">⚙️ Настройки, Про+ и награды →</button>
+    </div>
+
+    <!-- ЭКРАН: квизы друга -->
+    <div class="screen" id="scr-fquizzes">
+      <div class="h2 mb12">Квизы <span id="fquiz-name">…</span></div>
+      <div class="sub small mb12">Выбери квиз и пройди — отвечай ЗА друга, не за себя 😉</div>
+      <div id="fquiz-list"></div>
     </div>
 
     <!-- ЭКРАН: настройки -->

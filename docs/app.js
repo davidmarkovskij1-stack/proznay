@@ -813,6 +813,7 @@ async function openFriends(silent) {
   if (!silent) { pc.innerHTML = '<div class="spin"></div>'; fl.innerHTML = ''; il.innerHTML = ''; }
   try {
     const data = await api('/api/friends');
+    state.friendsData = data;
     renderFriends(data);
   } catch (e) {
     pc.innerHTML = `<div class="card center"><div class="sub">${esc(e.message)}</div></div>`;
@@ -834,7 +835,6 @@ function renderFriends(data) {
         <div><b>${p.avgPct}%</b><span>средний балл</span></div>
       </div>
       ${p.bestFriend ? `<div class="sub small mt8 center">👑 Лучший друг: <b>${esc(p.bestFriend)}</b> — знает тебя на ${p.bestPct}%</div>` : '<div class="sub small mt8 center">Кинь друзьям квиз — и здесь появится твой лучший друг 👑</div>'}
-      <button class="btn ghost small mt12" id="btn-share-profile">📣 Похвастаться профилем</button>
     </div>`;
 
   // ачивки
@@ -879,7 +879,7 @@ function renderFriends(data) {
       b.addEventListener('click', () => openFWhisper(Number(b.dataset.id), b.dataset.name));
     });
     fl.querySelectorAll('.fw-play').forEach((b) => {
-      b.addEventListener('click', () => openStart(b.dataset.quiz));
+      b.addEventListener('click', () => openFriendQuizzes(b.dataset.fid, b.dataset.fname));
     });
   }
 
@@ -892,6 +892,33 @@ function renderFriends(data) {
 function shareToHome(text) {
   const url = `https://t.me/share/url?url=${encodeURIComponent('https://t.me/' + BOT)}&text=${encodeURIComponent(text || '')}`;
   tg.openTelegramLink(url);
+}
+
+/* ---------- квизы друга: выбрать и пройти ---------- */
+function openFriendQuizzes(friendId, friendName) {
+  show('fquizzes');
+  $('#fquiz-name').textContent = friendName;
+  const list = $('#fquiz-list');
+  list.innerHTML = '<div class="spin"></div>';
+  const data = state.friendsData;
+  if (!data || !data.friend_quizzes) { list.innerHTML = ''; return; }
+  const items = data.friend_quizzes.filter((q) => String(q.creator_id) === String(friendId));
+  if (!items.length) {
+    list.innerHTML = '<div class="card center"><div class="sub small">У ' + esc(friendName) + ' пока нет активных квизов</div></div>';
+    return;
+  }
+  const PACKS_NAMES = { classic: '🎯 Классика', party: '🎉 Вечеринка', love: '💘 Романтика', school: '🎒 Школа и универ', truth: '🌶 Горькая правда', roast: '🤡 Кринж и ляпы', psy: '🧠 Психология' };
+  list.innerHTML = items.map((q) => {
+    const d = new Date(q.created_at);
+    return '<div class="quiz-item" data-quiz="' + esc(q.id) + '">' +
+      '<div class="q-emoji">' + (PACKS_NAMES[q.pack] ? PACKS_NAMES[q.pack].split(' ')[0] : '🎯') + '</div>' +
+      '<div class="meta"><div class="title">' + esc(PACKS_NAMES[q.pack] || 'Квиз') + '</div>' +
+      '<div class="sub">' + d.getDate() + '.' + String(d.getMonth() + 1).padStart(2, '0') + '</div></div>' +
+      '<div class="arrow">›</div></div>';
+  }).join('');
+  list.querySelectorAll('.quiz-item').forEach((item) => {
+    item.addEventListener('click', () => openStart(item.dataset.quiz));
+  });
 }
 
 /* ---------- шепнуть другу ---------- */
@@ -929,7 +956,10 @@ async function openWhispers() {
   show('whispers');
   const list = $('#whispers-list');
   list.innerHTML = '<div class="spin"></div>';
-  $('#wh-pro-note').textContent = state.user && state.user.pro ? '💎 Про: авторы шептунков открыты' : 'Автор шептунка скрыт — открывается с 💎 Про+ (в Настройках)';
+  const data = state.whData;
+  $('#wh-pro-note').textContent = data && data.wauth_unlocked
+    ? '👀 Авторы шептунков открыты'
+    : 'Автор шептунка скрыт. Тапни по сообщению, чтобы узнать кто 👀';
   try {
     const data = await api('/api/whispers');
     state.whData = data;
@@ -950,12 +980,73 @@ function renderWhispers() {
       : '<div class="card center"><div class="emoji-big">📤</div><div class="sub small mt8">Ты ещё никому не шепнул(а).<br>Загляни во вкладку «Друзья»!</div></div>';
     return;
   }
-  list.innerHTML = items.map((w) => '<div class="whisper-card"><div class="w-text">«' + esc(w.text) + '»</div><div class="w-author">' + (whTab === 'in' ? (w.author ? 'от ' + esc(w.author) : 'автор скрыт 👀') : '→ ' + esc(w.toUser)) + '</div></div>').join('');
+  list.innerHTML = items.map((w) => '<div class="whisper-card' + (whTab === 'in' && !w.author ? ' w-locked' : '') + '" data-id="' + w.id + '"><div class="w-text">«' + esc(w.text) + '»</div><div class="w-author">' + (whTab === 'in' ? (w.author ? 'от ' + esc(w.author) : '<span class="w-unlock-hint">👀 Узнать кто — ' + (data.wauth_price || 29) + ' ⭐</span>') : '→ ' + esc(w.toUser)) + '</div></div>').join('');
+  list.querySelectorAll('.w-locked').forEach((card) => {
+    card.addEventListener('click', () => showWauthModal());
+  });
+}
+
+/* ---------- плашка покупки авторов шептунков ---------- */
+function showWauthModal() {
+  const data = state.whData || {};
+  if (data.wauth_unlocked) { openWhispers(); return; }
+  const price = data.wauth_price || 29;
+  const old = document.getElementById('wauth-modal');
+  if (old) old.remove();
+  const modal = document.createElement('div');
+  modal.id = 'wauth-modal';
+  modal.className = 'wauth-modal';
+  modal.innerHTML = '<div class="wauth-box">' +
+    '<div class="emoji-big">👀</div>' +
+    '<div class="h3 mt12">Узнать, кто шепнул?</div>' +
+    '<div class="sub small mt8">Откроет авторов <b>всех</b> твоих шептунков — прошлых и будущих. Навсегда.</div>' +
+    '<button class="btn mt16" id="btn-wauth-buy">Открыть за ' + price + ' ⭐</button>' +
+    '<button class="link-btn" id="btn-wauth-close">Позже</button>' +
+    '</div>';
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+  document.getElementById('btn-wauth-close').onclick = () => modal.remove();
+  document.getElementById('btn-wauth-buy').onclick = async () => {
+    const btn = document.getElementById('btn-wauth-buy');
+    btn.disabled = true;
+    try {
+      const res = await api('/api/wauth/buy');
+      if (res.already) { modal.remove(); openWhispers(); return; }
+      const onClosed = async (e2) => {
+        tg.offEvent('invoiceClosed', onClosed);
+        if (e2 && e2.status === 'paid') {
+          try { await api('/api/payments/confirm', { payload: res.payload }); } catch (err) {}
+          SFX.play('coin');
+          toast('Авторы открыты 👀');
+          modal.remove();
+          openWhispers();
+        } else {
+          btn.disabled = false;
+        }
+      };
+      tg.onEvent('invoiceClosed', onClosed);
+      tg.openInvoice(res.invoice_link);
+    } catch (e) {
+      toast(e.message);
+      btn.disabled = false;
+    }
+  };
 }
 
 /* ---------- профиль ---------- */
 const PF_COLORS = ['#7c5cff', '#ff6ec7', '#4fc3f7', '#4ade80', '#ffb74d', '#ff6b6b', '#26c6da', '#ffd166'];
+const PF_FONTS = [
+  { code: 'default', name: 'Обычный', cls: '' },
+  { code: 'caveat', name: 'Caveat', cls: 'font-caveat' },
+  { code: 'marck', name: 'Marck Script', cls: 'font-marck' },
+  { code: 'russo', name: 'Russo One', cls: 'font-russo' },
+  { code: 'comfortaa', name: 'Comfortaa', cls: 'font-comfortaa' },
+  { code: 'yeseva', name: 'Yeseva One', cls: 'font-yeseva' },
+  { code: 'amatic', name: 'Amatic SC', cls: 'font-amatic' },
+];
 let pfColor = '#7c5cff';
+let pfFont = 'default';
+let pfAvatar = '';
 async function openProfile() {
   show('profile');
   $('#profile-preview').innerHTML = '<div class="spin"></div>';
@@ -964,13 +1055,65 @@ async function openProfile() {
     $('#pf-name').value = data.profile.name === 'Друг' ? '' : data.profile.name;
     $('#pf-bio').value = data.profile.bio || '';
     pfColor = data.profile.color || '#7c5cff';
+    pfFont = data.profile.font || 'default';
+    pfAvatar = data.profile.avatar || '';
     renderPfColors();
+    renderPfFonts();
+    renderPfAvatar();
     renderProfilePreview();
   } catch (e) {
     $('#profile-preview').innerHTML = '<div class="sub">' + esc(e.message) + '</div>';
   }
   const s2 = $('#btn-open-settings2');
   if (s2) s2.onclick = openSettings;
+}
+function renderPfFonts() {
+  const box = $('#pf-fonts');
+  if (!box) return;
+  box.innerHTML = PF_FONTS.map((f) => '<div class="font-chip' + (f.code === pfFont ? ' sel' : '') + '" data-f="' + f.code + '"><span class="' + f.cls + '">' + f.name + '</span></div>').join('');
+  box.querySelectorAll('.font-chip').forEach((chip) => {
+    chip.onclick = () => { pfFont = chip.dataset.f; haptic('light'); SFX.play('select'); renderPfFonts(); renderProfilePreview(); };
+  });
+}
+function renderPfAvatar() {
+  const av = $('#pf-avatar-prev');
+  if (!av) return;
+  av.innerHTML = pfAvatar
+    ? '<img class="avatar-img" src="' + pfAvatar + '" alt="">'
+    : '👁';
+  av.style.background = pfAvatar ? 'transparent' : 'var(--grad)';
+}
+function openPfPhoto() {
+  const inp = $('#pf-photo-input');
+  if (!inp) return;
+  inp.onchange = () => {
+    const file = inp.files && inp.files[0];
+    inp.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        // сжимаем до 160x160 JPEG — лёгкий dataURL для БД
+        const S = 160;
+        const canvas = document.createElement('canvas');
+        canvas.width = S; canvas.height = S;
+        const cx = canvas.getContext('2d');
+        const side = Math.min(img.width, img.height);
+        cx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, S, S);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        if (dataUrl.length > 180000) { toast('Фото слишком большое, попробуй другое'); return; }
+        pfAvatar = dataUrl;
+        renderPfAvatar();
+        renderProfilePreview();
+        SFX.play('ok');
+        toast('Аватарка готова — не забудь сохранить 💾');
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  };
+  inp.click();
 }
 function renderPfColors() {
   const box = $('#pf-colors');
@@ -979,17 +1122,23 @@ function renderPfColors() {
     sw.onclick = () => { pfColor = sw.dataset.c; haptic('light'); SFX.play('select'); renderPfColors(); renderProfilePreview(); };
   });
 }
+function fontCls(code) {
+  const f = PF_FONTS.find((x) => x.code === code);
+  return f ? f.cls : '';
+}
 function renderProfilePreview() {
   const name = $('#pf-name').value.trim() || (state.user ? state.user.name : 'Друг');
   const bio = $('#pf-bio').value.trim();
-  $('#profile-preview').innerHTML = '<div class="profile-top"><div class="profile-avatar" style="background:' + pfColor + '">' + esc(name.charAt(0).toUpperCase()) + '</div>' + (state.user && state.user.pro ? '<div class="pro-badge">💎 Про</div>' : '') + '</div><div class="h3 mt12">' + esc(name) + '</div>' + (bio ? '<div class="sub small mt8">' + esc(bio) + '</div>' : '') + '<div class="sub small mt8 dim">Так тебя видят друзья во вкладке «Друзья»</div>';
+  const avatarHtml = pfAvatar ? '<img class="avatar-img" src="' + pfAvatar + '" alt="">' : esc(name.charAt(0).toUpperCase());
+  const avatarBg = pfAvatar ? 'background:transparent;' : 'background:' + pfColor + ';';
+  $('#profile-preview').innerHTML = '<div class="profile-top"><div class="profile-avatar" style="' + avatarBg + '">' + avatarHtml + '</div>' + (state.user && state.user.pro ? '<div class="pro-badge">💎 Про</div>' : '') + '</div><div class="h3 mt12 ' + fontCls(pfFont) + '">' + esc(name) + '</div>' + (bio ? '<div class="sub small mt8 ' + fontCls(pfFont) + '">' + esc(bio) + '</div>' : '') + '<div class="sub small mt8 dim">Так тебя видят друзья во вкладке «Друзья»</div>';
 }
 async function saveProfile() {
   const name = $('#pf-name').value.trim();
   if (!name) { toast('Имя не может быть пустым'); return; }
   const bio = $('#pf-bio').value.trim();
   try {
-    const data = await api('/api/profile', { name, bio, color: pfColor });
+    const data = await api('/api/profile', { name, bio, color: pfColor, avatar: pfAvatar, font: pfFont });
     SFX.play('ok');
     toast('Профиль сохранён 💾');
     if (state.user) state.user.name = data.profile.name;
@@ -1204,6 +1353,8 @@ function bindButtons() {
   on('btn-take-start', () => renderTakeQ(0));
   on('btn-res-create', openPack);
   on('btn-pf-save', saveProfile);
+  on('btn-pf-photo', openPfPhoto);
+  on('btn-pf-photo-del', () => { pfAvatar = ''; renderPfAvatar(); renderProfilePreview(); toast('Фото убрано'); });
   on('wtab-in', () => { whTab = 'in'; renderWhispers(); });
   on('wtab-out', () => { whTab = 'out'; renderWhispers(); });
   on('btn-claim-open', openClaimFlow);

@@ -166,6 +166,15 @@ async function handlePayment(msg) {
   const parts = (p.invoice_payload || '').split(':');
   const name = escapeHtml((msg.from && msg.from.first_name) || 'друг');
 
+  // покупка раскрытия авторов шептунков
+  if (parts[0] === 'wauth' && parts.length === 3) {
+    await sql`UPDATE users SET wauthors_unlocked = true WHERE id = ${msg.from.id.toString()}`.catch(() => {});
+    await sql`UPDATE purchases SET confirmed = true WHERE payload = ${p.invoice_payload}`.catch(() => {});
+    return sendMessage(msg.chat.id,
+      '👀 <b>Авторы шептунков открыты!</b>\n\nТеперь во вкладке «Шептунки» видно, кто тебе писал. Наслаждайся 😏')
+      .catch(() => {});
+  }
+
   // подписка Про+: продлеваем доступ на месяц
   if (parts[0] === 'sub' && parts.length === 3) {
     await sql`UPDATE users SET pro_until = GREATEST(now(), COALESCE(pro_until, now())) + interval '30 days'
