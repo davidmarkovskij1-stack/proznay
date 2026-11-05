@@ -200,16 +200,18 @@ async function get(path) {
   assert(creatorFriend, 'создатель в списке друзей друга');
   assert(creatorFriend.quiz_id, 'у создателя есть активный квиз для прохождения');
 
-  console.log('— 23. шепоток другу из вкладки Друзья');
-  await post('/api/whisper/send', { initData: friendInit, to_id: CREATOR_ID, text: 'Привет от друга 🤫' });
-  const wh = await post('/api/whispers', { initData: creatorInit });
-  assert(wh.whispers.some((w) => w.text.includes('Привет от друга') && !w.fromMe), 'шептунок получен создателем');
-  assert(wh.whispers.find((w) => w.text.includes('Привет от друга')).author === null, 'автор скрыт без Про');
+  console.log('— 23. шептунок другу из вкладки Друзья (создатель → друг)');
+  await post('/api/whisper/send', { initData: creatorInit, to_id: FRIEND_ID, text: 'Привет от создателя 🤫' });
+  const wh = await post('/api/whispers', { initData: friendInit });
+  assert(wh.whispers.some((w) => w.text.includes('Привет от создателя') && !w.fromMe), 'шептунок получен другом');
+  assert(wh.whispers.find((w) => w.text.includes('Привет от создателя')).author === null, 'автор скрыт без Про (у друга нет Про)');
+  const whSent = await post('/api/whispers', { initData: creatorInit });
+  assert(whSent.whispers.some((w) => w.fromMe && w.text.includes('Привет от создателя')), 'шептунок в списке отправленных');
 
   console.log('— 24. лимит: второй шептунок тому же другу в сутки → 429');
   const limTry = await fetch(API + '/api/whisper/send', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ initData: friendInit, to_id: CREATOR_ID, text: 'Ещё раз' }),
+    body: JSON.stringify({ initData: creatorInit, to_id: FRIEND_ID, text: 'Ещё раз' }),
   });
   const limData = await limTry.json();
   assert(limData.ok === false && limData.error === 'limit', 'лимит 1/сутки на друга работает');
