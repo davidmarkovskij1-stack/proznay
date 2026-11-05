@@ -595,22 +595,14 @@ async function profile(req, res, body) {
   if (!user) return json(res, 401, { ok: false, error: 'auth' });
   const uid = user.id.toString();
 
-  // обновление профиля (только если прислали поля)
-  if (body.name || body.bio || body.color !== undefined) {
-    const set = [];
-    const values = [];
-    if (body.name && body.name.trim()) {
-      set.push(`name = ${body.name.trim().slice(0, 32)}`);
-    }
-    if (body.bio !== undefined) {
-      set.push(`bio = ${body.bio.trim().slice(0, 120)}`);
-    }
-    if (body.color !== undefined) {
-      set.push(`color = ${body.color}`);
-    }
-    if (set.length) {
-      await sql`UPDATE users SET ${set.join(', ')} WHERE id = ${uid}`;
-    }
+  // обновление профиля (параметризованный запрос — безопасно)
+  const [cur] = await sql`SELECT name, color, bio FROM users WHERE id = ${uid}`;
+  if (body.name !== undefined || body.bio !== undefined || body.color !== undefined) {
+    const name = body.name !== undefined ? String(body.name).trim().slice(0, 32) : (cur.name || 'Друг');
+    const bio = body.bio !== undefined ? String(body.bio).trim().slice(0, 120) : (cur.bio || '');
+    const color = body.color !== undefined && /^#[0-9a-fA-F]{6}$/.test(String(body.color)) ? String(body.color) : (cur.color || '#7c5cff');
+    if (!name) return json(res, 400, { ok: false, error: 'bad_input', message: 'Имя не может быть пустым' });
+    await sql`UPDATE users SET name = ${name}, bio = ${bio}, color = ${color} WHERE id = ${uid}`;
   }
 
   const [row] = await sql`SELECT name, color, bio FROM users WHERE id = ${uid}`;
@@ -622,6 +614,15 @@ async function profile(req, res, body) {
       bio: row.bio || '',
     },
   });
+}
+
+/** POST /api/settings — переключатель уведомлений */
+async function settings(req, res, body) {
+  const user = auth(body);
+  if (!user) return json(res, 401, { ok: false, error: 'auth' });
+  await upsertUser(user);
+  await sql`UPDATE users SET muted = ${!!body.muted} WHERE id = ${user.id.toString()}`;
+  return json(res, 200, { ok: true, muted: !!body.muted });
 }
 
 /** POST /api/quiz/friends — квизы друзей для прохождения (только активные) */
