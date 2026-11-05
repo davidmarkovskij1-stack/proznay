@@ -47,10 +47,10 @@ async function handleStart(msg, payload) {
       const who = escapeHtml(quiz.creator_name || 'твой друг');
       return sendMessage(chatId,
         `🎯 <b>ЧЕЛЛЕНДЖ ОТ ${who.toUpperCase()}</b>\n\n` +
-        `Насколько хорошо ты знаешь этого человека? Проверим!\n\n` +
-        `· <b>7 вопросов</b> — угадай, как ответил(а) бы он(а)\n` +
+        `<b>Как думаешь, что отвечал(а) ${who}?</b> Не как ты бы ответил(а) — а как ответил(а) бы он(а) 😏\n\n` +
+        `· <b>7 вопросов</b> — угадай ЕГО(ЕЁ) ответы\n` +
         `· <b>3 анонимных</b> — что ты о нём(ней) думаешь 🤫\n` +
-        `· Твой результат попадёт в личный лидерборд 🏆\n\n` +
+        `· Твой результат попадёт в лидерборд 🏆\n\n` +
         `⏱ Займёт меньше минуты`,
         { reply_markup: quizKeyboard(payload) });
     }
@@ -165,6 +165,16 @@ async function handlePayment(msg) {
   const p = msg.successful_payment;
   const parts = (p.invoice_payload || '').split(':');
   const name = escapeHtml((msg.from && msg.from.first_name) || 'друг');
+
+  // подписка Про+: продлеваем доступ на месяц
+  if (parts[0] === 'sub' && parts.length === 3) {
+    await sql`UPDATE users SET pro_until = GREATEST(now(), COALESCE(pro_until, now())) + interval '30 days'
+              WHERE id = ${msg.from.id.toString()}`.catch(() => {});
+    await sql`UPDATE purchases SET confirmed = true WHERE payload = ${p.invoice_payload}`.catch(() => {});
+    return sendMessage(msg.chat.id,
+      `💎 <b>Про+ активирован!</b>\n\nВсе паки открыты · авторы шептунков видны · 20 квизов в день\n\nСпасибо за поддержку, ${name}! 💜`)
+      .catch(() => {});
+  }
 
   // донат: фиксируем и обещаем награду в приложении
   if (parts[0] === 'donate' && parts.length === 4) {

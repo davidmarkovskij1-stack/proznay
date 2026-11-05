@@ -57,6 +57,11 @@
         </div>
 
         <div class="card mt12">
+          <div class="sub small">💬 <b>Вопрос дня</b> — свежая тема каждый день:</div>
+          <div class="h3 mt8" id="wqotd">Загружаем…</div>
+        </div>
+
+        <div class="card mt12">
           <div class="h3">Примеры вопросов:</div>
           <div class="sample mt8">«Моя идеальная пятница вечером?»</div>
           <div class="sample">«Какой я в компании?»</div>
@@ -147,7 +152,7 @@
       <div class="center" style="padding-top: 6vh">
         <div class="intro-avatar" id="take-intro-avatar">👁</div>
         <div class="h2 mt16" id="take-intro-name">…</div>
-        <div class="sub mt12">бросил(а) тебе вызов.<br>Угадай, как ответил(а) бы он(а) — 7 вопросов.</div>
+        <div class="sub mt12"><b>Отвечай ЗА него(неё), не за себя!</b> 😉<br>Угадай 7 ЕГО(ЕЁ) ответов.</div>
         <div class="chips mt16">
           <span class="chip-item">🎯 7 вопросов</span>
           <span class="chip-item">🏆 Попадёшь в лидерборд</span>
@@ -194,7 +199,7 @@
         <div class="sub small mt8" style="text-align:right"><span id="whisper-len">0</span>/140</div>
       </div>
       <button class="btn mt16" id="btn-whisper-send">Отправить анонимно 🤫</button>
-      <button class="link-btn" id="btn-whisper-skip">Пропустить →</button>
+      <button class="btn ghost" id="btn-whisper-skip">Не хочу шептать 🙈</button>
     </div>
 
     <!-- ЭКРАН: результат -->
@@ -241,6 +246,64 @@
       <div id="board-body"></div>
     </div>
 
+    <!-- ЭКРАН: друзья -->
+    <div class="screen" id="scr-friends">
+      <div class="h2 mb12">Друзья</div>
+      <div id="profile-card"></div>
+      <div class="ach-row mt12" id="achieve-row"></div>
+      <div class="h3 mt20">💌 Тебе шепнули</div>
+      <div id="inbox-list" class="mt12"></div>
+      <div class="h3 mt20">👥 Твои люди</div>
+      <div id="friends-list" class="mt12"></div>
+    </div>
+
+    <!-- ЭКРАН: шепнуть другу -->
+    <div class="screen" id="scr-fwhisper">
+      <div class="center mt16">
+        <div class="intro-avatar" id="fwhisper-avatar">👁</div>
+        <div class="h2 mt16">Шепнуть <span id="fwhisper-name">…</span></div>
+        <div class="sub mt8">Анонимно. Он(а) не узнает, кто это — если у него(неё) нет Про+ 😉</div>
+      </div>
+      <div class="chips mt16" id="fwhisper-chips">
+        <span class="chip-item" data-t="Ты классный(ая)! 💜">💜 Комплимент</span>
+        <span class="chip-item" data-t="Скучаю по нашим движам 😂">😂 Смешное</span>
+        <span class="chip-item" data-t="Мой тебе совет:">💡 Совет</span>
+        <span class="chip-item" data-t="Спрашиваю анонимно:">❓ Вопрос</span>
+      </div>
+      <div class="card mt12">
+        <textarea id="fwhisper-text" maxlength="140" rows="3" placeholder="Напиши анонимно…"></textarea>
+        <div class="sub small mt8" style="text-align:right"><span id="fwhisper-len">0</span>/140</div>
+      </div>
+      <button class="btn mt16" id="btn-fwhisper-send">Отправить анонимно 🤫</button>
+    </div>
+
+    <!-- ЭКРАН: шептунки (общий) -->
+    <div class="screen" id="scr-whispers">
+      <div class="h2 mb12">💌 Шептунки</div>
+      <div class="sub small mb12" id="wh-pro-note"></div>
+      <div class="chips mb12">
+        <span class="chip-item sel" id="wtab-in">📥 Полученные</span>
+        <span class="chip-item" id="wtab-out">📤 Отправленные</span>
+      </div>
+      <div id="whispers-list"></div>
+    </div>
+
+    <!-- ЭКРАН: профиль -->
+    <div class="screen" id="scr-profile">
+      <div class="h2 mb12">Профиль</div>
+      <div class="card profile-card" id="profile-preview"></div>
+      <div class="card mt12">
+        <div class="sub small">Имя (как тебя видят друзья):</div>
+        <input class="p-input mt8" id="pf-name" maxlength="24" placeholder="Твоё имя">
+        <div class="sub small mt12">Описание (видно во вкладке Друзья):</div>
+        <textarea class="p-input mt8" id="pf-bio" maxlength="120" rows="2" placeholder="Пара слов о себе…"></textarea>
+        <div class="sub small mt12">Цвет аватарки:</div>
+        <div class="swatches mt8" id="pf-colors"></div>
+        <button class="btn mt16" id="btn-pf-save">💾 Сохранить профиль</button>
+      </div>
+      <button class="link-btn mt8" id="btn-open-settings2">⚙️ Настройки, Про+ и награды →</button>
+    </div>
+
     <!-- ЭКРАН: настройки -->
     <div class="screen" id="scr-settings">
       <div class="h2 mb12">Настройки</div>
@@ -261,10 +324,22 @@
         </div>
         <div class="small center mt12" style="color:rgba(255,255,255,.65)">25 ⭐ — подарок-сюрприз · 50 ⭐ — два пака на выбор · 100 ⭐ — все паки навсегда 💎</div>
       </div>
+      <div class="card mt12" id="pro-card">
+        <div class="h3">💎 Прознай Про+</div>
+        <div class="sub small mt8" id="pro-sub">Все паки навсегда · авторы шептунков видны · 20 квизов в день · бейдж 💎</div>
+        <button class="btn mt16" id="btn-sub-buy">Подключить за 199 ⭐/мес</button>
+      </div>
       <div class="card mt12" id="rewards-card" style="display:none">
         <div class="h3">🎁 Награда за донат</div>
         <div class="sub small mt8" id="rewards-sub">У тебя есть необработанная награда!</div>
         <button class="btn mt16" id="btn-claim-open">Забрать награду</button>
+      </div>
+      <div class="toggle-row mt12">
+        <div>
+          <div class="h3" style="font-size:16px">🔊 Звуки</div>
+          <div class="sub small">Мягкие звуки нажатий и побед</div>
+        </div>
+        <div class="switch on" id="sw-sound"></div>
       </div>
       <div class="card mt12">
         <div class="h3" style="font-size:16px">👁 Прознай</div>
@@ -274,6 +349,13 @@
     </div>
 
   </div>
+  <nav id="navbar" style="display:none">
+    <button data-nav="welcome">🏠<span>Главная</span></button>
+    <button data-nav="friends">👥<span>Друзья</span></button>
+    <button data-nav="whispers">💌<span>Шептунки</span></button>
+    <button data-nav="my">📊<span>Квизы</span></button>
+    <button data-nav="profile">👤<span>Профиль</span></button>
+  </nav>
   <div id="toast"></div>
   <script src="config.js"></script>
   <script src="app.js" defer></script>

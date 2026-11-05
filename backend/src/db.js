@@ -73,6 +73,22 @@ async function initSchema() {
       await sql`ALTER TABLE purchases ADD COLUMN IF NOT EXISTS claimed BOOLEAN NOT NULL DEFAULT false`;
       // анонимные «шептунки» — сообщения друзей создателю
       await sql`ALTER TABLE answers ADD COLUMN IF NOT EXISTS whisper TEXT`;
+      // подписка Про+
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS pro_until TIMESTAMPTZ`;
+      // редактируемый профиль
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS color TEXT`;
+      // личные шептунки между друзьями (общий раздел «Шептунки»)
+      await sql`CREATE TABLE IF NOT EXISTS whispers (
+        id SERIAL PRIMARY KEY,
+        from_id BIGINT NOT NULL,
+        to_id BIGINT NOT NULL,
+        text TEXT NOT NULL,
+        from_quiz TEXT,
+        read BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_whispers_to ON whispers(to_id, created_at)`;
       // купленные паки (или открытые за донат)
       await sql`CREATE TABLE IF NOT EXISTS user_packs (
         user_id BIGINT NOT NULL,
@@ -86,11 +102,11 @@ async function initSchema() {
 }
 
 async function upsertUser(tgUser) {
+  // имя — только при первой записи (профиль можно менять в приложении)
   await sql`INSERT INTO users (id, name, username)
             VALUES (${tgUser.id.toString()}, ${tgUser.first_name || 'Друг'}, ${tgUser.username || null})
             ON CONFLICT (id) DO UPDATE
             SET last_seen_at = now(),
-                name = COALESCE(NULLIF(${tgUser.first_name || ''}, ''), users.name),
                 username = COALESCE(${tgUser.username || null}, users.username)`;
 }
 

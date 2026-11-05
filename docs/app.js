@@ -5,6 +5,44 @@ const tg = window.Telegram.WebApp;
 const API = window.PROZNAY_API_URL;
 let BOT = window.PROZNAY_BOT_USERNAME || 'proznay_bot';
 
+/* ---------- звуки (WebAudio, мягкие и синтезированные) ---------- */
+const SFX = (() => {
+  let ctx = null;
+  let enabled = localStorage.getItem('pzn_sound') !== 'off';
+  function ac() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  function tone(freq, dur, type, vol, delay) {
+    const c = ac();
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = type || 'sine';
+    o.frequency.value = freq;
+    const t0 = c.currentTime + (delay || 0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(vol || 0.06, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(c.destination);
+    o.start(t0);
+    o.stop(t0 + dur + 0.05);
+  }
+  const sounds = {
+    tap: () => tone(520, 0.07, 'sine', 0.05),
+    select: () => { tone(590, 0.07, 'sine', 0.055); tone(740, 0.09, 'sine', 0.05, 0.05); },
+    ok: () => { tone(523, 0.12, 'sine', 0.07); tone(659, 0.14, 'sine', 0.06, 0.08); },
+    win: () => { tone(523, 0.12, 'sine', 0.07); tone(659, 0.12, 'sine', 0.07, 0.09); tone(784, 0.22, 'sine', 0.08, 0.18); },
+    send: () => { tone(440, 0.08, 'sine', 0.05); tone(880, 0.12, 'sine', 0.06, 0.06); },
+    coin: () => { tone(988, 0.1, 'triangle', 0.055); tone(1319, 0.16, 'triangle', 0.055, 0.07); },
+  };
+  return {
+    play(kind) { if (!enabled) return; try { (sounds[kind] || sounds.tap)(); } catch (e) {} },
+    toggle() { enabled = !enabled; localStorage.setItem('pzn_sound', enabled ? 'on' : 'off'); return enabled; },
+    get enabled() { return enabled; },
+  };
+})();
+
 const state = {
   user: null,
   pack: 'classic',
@@ -128,10 +166,9 @@ const BACK_MAP = {
   'pack': () => show('welcome'),
   'create': () => show('pack'),
   'share': () => openMy(true),
-  'my': () => show('welcome'),
   'board': () => openMy(true),
-  'settings': () => openMy(true),
   'claim': () => show('settings'),
+  'fwhisper': () => openFriends(true),
   'take-intro': () => tg.close(),
   'result': () => tg.close(),
 };
@@ -142,14 +179,36 @@ function show(id) {
   if (el) el.classList.add('active');
   state.current = id;
   window.scrollTo(0, 0);
+
+  // нижнее меню видно только на корневых вкладках
+  const nav = $('#navbar');
+  const tabs = ['welcome', 'friends', 'whispers', 'my', 'profile'];
+  if (nav) {
+    nav.style.display = tabs.includes(id) ? 'flex' : 'none';
+    nav.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.nav === id));
+  }
+
   const back = BACK_MAP[id];
   try {
-    if (back) {
-      tg.BackButton.show();
-    } else {
-      tg.BackButton.hide();
-    }
+    if (back) tg.BackButton.show();
+    else tg.BackButton.hide();
   } catch (e) {}
+}
+
+function bindNav() {
+  const nav = $('#navbar');
+  if (!nav) return;
+  nav.querySelectorAll('button').forEach((b) => {
+    b.addEventListener('click', () => {
+      SFX.play('tap');
+      const to = b.dataset.nav;
+      if (to === 'friends') openFriends();
+      else if (to === 'whispers') openWhispers();
+      else if (to === 'my') openMy();
+      else if (to === 'profile') openProfile();
+      else show('welcome');
+    });
+  });
 }
 
 tg.BackButton.onClick(() => {
@@ -183,6 +242,19 @@ function renderPackList() {
     return;
   }
   box.innerHTML = state.packs.map((p) => {
+    if (p.soon) {
+      return `
+      <div class="pack-card soon">
+        <div class="soon-blur">
+          <div class="emoji">${esc(p.emoji)}</div>
+          <div>
+            <div class="h3">${esc(p.title)}</div>
+            <div class="sub small">${esc(p.desc || '')}</div>
+          </div>
+        </div>
+        <div class="badge-soon">Скоро</div>
+      </div>`;
+    }
     const sel = p.code === state.pack ? ' sel' : '';
     const locked = !p.owned;
     const right = locked
@@ -192,7 +264,7 @@ function renderPackList() {
       <div class="pack-card${sel}" data-pack="${esc(p.code)}" data-locked="${locked ? 1 : 0}">
         <div class="emoji">${esc(p.emoji)}</div>
         <div>
-          <div class="h3">${esc(p.title)}${p.adult ? ' <span class="badge-18">18+</span>' : ''}</div>
+          <div class="h3">${esc(p.title)}</div>
           <div class="sub small">${esc(p.desc || '')}</div>
         </div>
         ${right}
@@ -273,6 +345,7 @@ function renderCreateQ(i) {
     b.addEventListener('click', () => {
       haptic('light');
       state.createAnswers[i] = oi;
+      SFX.play('select');
       box.querySelectorAll('.opt').forEach((o) => o.classList.remove('sel'));
       b.classList.add('sel');
       setTimeout(() => {
@@ -340,6 +413,7 @@ function renderTakeQ(i) {
     b.addEventListener('click', () => {
       haptic('light');
       state.takePicks[i] = oi;
+      SFX.play('select');
       box.querySelectorAll('.opt').forEach((o) => o.classList.remove('sel'));
       b.classList.add('sel');
       setTimeout(() => {
@@ -366,6 +440,7 @@ function renderVotesQ(i) {
     b.addEventListener('click', () => {
       haptic('light');
       state.takeVotes[i] = oi;
+      SFX.play('select');
       box.querySelectorAll('.opt').forEach((o) => o.classList.remove('sel'));
       b.classList.add('sel');
       setTimeout(() => {
@@ -632,7 +707,7 @@ function renderBoard() {
     html += q.whispers.map((w) => `
       <div class="whisper-card mt12">
         <div class="w-text">«${esc(w.text)}»</div>
-        <div class="w-author">${w.author ? 'от ' + esc(w.author) : 'author hidden · 👀'}</div>
+        <div class="w-author">${w.author ? 'от ' + esc(w.author) : 'автор скрыт 👀'}</div>
       </div>`).join('');
     if (!q.details) html += `<div class="sub small mt8 intrigue">Кто это написал — увидишь после раскрытия 🤫</div>`;
   }
@@ -724,6 +799,197 @@ async function refreshBoard() {
   } catch (e) {}
 }
 
+/* ---------- друзья ---------- */
+async function openFriends(silent) {
+  show('friends');
+  const pc = $('#profile-card'), fl = $('#friends-list'), il = $('#inbox-list');
+  if (!silent) { pc.innerHTML = '<div class="spin"></div>'; fl.innerHTML = ''; il.innerHTML = ''; }
+  try {
+    const data = await api('/api/friends');
+    renderFriends(data);
+  } catch (e) {
+    pc.innerHTML = `<div class="card center"><div class="sub">${esc(e.message)}</div></div>`;
+  }
+}
+
+function renderFriends(data) {
+  const pc = $('#profile-card');
+  const p = data.profile;
+  pc.innerHTML = `
+    <div class="card profile-card">
+      <div class="profile-top">
+        <div class="profile-avatar">${esc((state.user && state.user.name ? state.user.name : '?').charAt(0).toUpperCase())}</div>
+        ${data.pro ? '<div class="pro-badge">💎 Про</div>' : ''}
+      </div>
+      <div class="profile-stats">
+        <div><b>${p.quizzes}</b><span>квизов</span></div>
+        <div><b>${p.takers}</b><span>прохождений</span></div>
+        <div><b>${p.avgPct}%</b><span>средний балл</span></div>
+      </div>
+      ${p.bestFriend ? `<div class="sub small mt8 center">👑 Лучший друг: <b>${esc(p.bestFriend)}</b> — знает тебя на ${p.bestPct}%</div>` : '<div class="sub small mt8 center">Кинь друзьям квиз — и здесь появится твой лучший друг 👑</div>'}
+      <button class="btn ghost small mt12" id="btn-share-profile">📣 Похвастаться профилем</button>
+    </div>`;
+
+  // ачивки
+  const ach = [];
+  if (p.quizzes >= 1) ach.push('🚀 Первый квиз');
+  if (p.quizzes >= 5) ach.push('🎯 Мастер квизов');
+  if (p.takers >= 10) ach.push('👑 10 прохождений');
+  if (p.avgPct >= 80) ach.push('🔥 Внутри меня знают');
+  if (data.pro) ach.push('💎 Про');
+  $('#achieve-row').innerHTML = ach.length
+    ? ach.map((a) => `<span class="ach-chip">${a}</span>`).join('')
+    : '<span class="ach-chip dim2">Ачивки появятся по мере игры</span>';
+
+  // входящие шептунки
+  const il = $('#inbox-list');
+  il.innerHTML = data.inbox.length
+    ? data.inbox.map((w) => `
+      <div class="whisper-card">
+        <div class="w-text">«${esc(w.text)}»</div>
+        <div class="w-author">${w.author ? 'от ' + esc(w.author) : 'автор скрыт 👀'}</div>
+      </div>`).join('')
+    : '<div class="card center"><div class="sub small">Пока тихо… Друзья стесняются 😄<br>Кинь им квиз — они смогут шепнуть!</div></div>';
+
+  // список друзей
+  const fl = $('#friends-list');
+  if (!data.friends.length) {
+    fl.innerHTML = '<div class="card center"><div class="sub small">Здесь появятся все, кто проходил твои квизы — и чьи квизы проходил ты</div></div>';
+  } else {
+    fl.innerHTML = data.friends.map((f) => `
+      <div class="friend-row">
+        <div class="avatar" style="${f.color ? 'background:' + esc(f.color) : ''}">${esc(String(f.name || '?').charAt(0).toUpperCase())}</div>
+        <div class="meta">
+          <div class="title">${esc(f.name)}</div>
+          <div class="sub">${f.plays} ${plural(f.plays, 'квиз', 'квиза', 'квизов')} · лучший ${f.best}%</div>
+        </div>
+        <div class="fw-actions">
+          ${f.quiz_id ? '<button class="btn small ghost fw-play" data-quiz="' + esc(f.quiz_id) + '">▶️ Пройти</button>' : ''}
+          <button class="btn small ghost fw-btn" data-id="${f.id}" data-name="${esc(f.name)}">🤫 Шепнуть</button>
+        </div>
+      </div>`).join('');
+    fl.querySelectorAll('.fw-btn').forEach((b) => {
+      b.addEventListener('click', () => openFWhisper(Number(b.dataset.id), b.dataset.name));
+    });
+    fl.querySelectorAll('.fw-play').forEach((b) => {
+      b.addEventListener('click', () => openStart(b.dataset.quiz));
+    });
+  }
+
+  const sp = $('#btn-share-profile');
+  if (sp) sp.addEventListener('click', () => {
+    shareToHome(`Мои квизы прошли ${p.takers} раз(а) 👁 Средний балл ${p.avgPct}%${p.bestFriend ? `, лид — ${p.bestFriend}` : ''}. Узнаешь себя? Проверь, насколько хорошо знаешь меня 👉`);
+  });
+}
+
+function shareToHome(text) {
+  const url = `https://t.me/share/url?url=${encodeURIComponent('https://t.me/' + BOT)}&text=${encodeURIComponent(text || '')}`;
+  tg.openTelegramLink(url);
+}
+
+/* ---------- шепнуть другу ---------- */
+function openFWhisper(id, name) {
+  show('fwhisper');
+  $('#fwhisper-name').textContent = name;
+  $('#fwhisper-avatar').textContent = String(name).charAt(0).toUpperCase();
+  const ta = $('#fwhisper-text');
+  ta.value = '';
+  $('#fwhisper-len').textContent = '0';
+  document.querySelectorAll('#fwhisper-chips .chip-item').forEach((chip) => {
+    chip.onclick = () => { ta.value = chip.dataset.t + ' '; $('#fwhisper-len').textContent = ta.value.length; ta.focus(); };
+  });
+  ta.oninput = () => { $('#fwhisper-len').textContent = ta.value.length; };
+  $('#btn-fwhisper-send').onclick = async () => {
+    const text = ta.value.trim();
+    if (!text) { toast('Напиши что-нибудь 🙂'); return; }
+    const btn = $('#btn-fwhisper-send');
+    btn.disabled = true;
+    try {
+      await api('/api/whisper/send', { to_id: id, text });
+      SFX.play('send');
+      toast('Шепнул(а) анонимно 🤫');
+      show('friends');
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  };
+}
+/* ---------- шептунки (общий раздел) ---------- */
+let whTab = 'in';
+async function openWhispers() {
+  show('whispers');
+  const list = $('#whispers-list');
+  list.innerHTML = '<div class="spin"></div>';
+  $('#wh-pro-note').textContent = state.user && state.user.pro ? '💎 Про: авторы шептунков открыты' : 'Автор шептунка скрыт — открывается с 💎 Про+ (в Настройках)';
+  try {
+    const data = await api('/api/whispers');
+    state.whData = data;
+    renderWhispers();
+  } catch (e) {
+    list.innerHTML = '<div class="card center"><div class="sub">' + esc(e.message) + '</div></div>';
+  }
+}
+function renderWhispers() {
+  const data = state.whData || { whispers: [] };
+  $('#wtab-in').classList.toggle('sel', whTab === 'in');
+  $('#wtab-out').classList.toggle('sel', whTab === 'out');
+  const items = data.whispers.filter((w) => whTab === 'in' ? !w.fromMe : w.fromMe);
+  const list = $('#whispers-list');
+  if (!items.length) {
+    list.innerHTML = whTab === 'in'
+      ? '<div class="card center"><div class="emoji-big">🤫</div><div class="sub small mt8">Пока никто не шепнул.<br>Кинь друзьям квиз — они смогут!</div></div>'
+      : '<div class="card center"><div class="emoji-big">📤</div><div class="sub small mt8">Ты ещё никому не шепнул(а).<br>Загляни во вкладку «Друзья»!</div></div>';
+    return;
+  }
+  list.innerHTML = items.map((w) => '<div class="whisper-card"><div class="w-text">«' + esc(w.text) + '»</div><div class="w-author">' + (whTab === 'in' ? (w.author ? 'от ' + esc(w.author) : 'автор скрыт 👀') : '→ ' + esc(w.toUser)) + '</div></div>').join('');
+}
+
+/* ---------- профиль ---------- */
+const PF_COLORS = ['#7c5cff', '#ff6ec7', '#4fc3f7', '#4ade80', '#ffb74d', '#ff6b6b', '#26c6da', '#ffd166'];
+let pfColor = '#7c5cff';
+async function openProfile() {
+  show('profile');
+  $('#profile-preview').innerHTML = '<div class="spin"></div>';
+  try {
+    const data = await api('/api/profile');
+    $('#pf-name').value = data.profile.name === 'Друг' ? '' : data.profile.name;
+    $('#pf-bio').value = data.profile.bio || '';
+    pfColor = data.profile.color || '#7c5cff';
+    renderPfColors();
+    renderProfilePreview();
+  } catch (e) {
+    $('#profile-preview').innerHTML = '<div class="sub">' + esc(e.message) + '</div>';
+  }
+  const s2 = $('#btn-open-settings2');
+  if (s2) s2.onclick = openSettings;
+}
+function renderPfColors() {
+  const box = $('#pf-colors');
+  box.innerHTML = PF_COLORS.map((c) => '<div class="swatch' + (c === pfColor ? ' sel' : '') + '" data-c="' + c + '" style="background:' + c + '"></div>').join('');
+  box.querySelectorAll('.swatch').forEach((sw) => {
+    sw.onclick = () => { pfColor = sw.dataset.c; haptic('light'); SFX.play('select'); renderPfColors(); renderProfilePreview(); };
+  });
+}
+function renderProfilePreview() {
+  const name = $('#pf-name').value.trim() || (state.user ? state.user.name : 'Друг');
+  const bio = $('#pf-bio').value.trim();
+  $('#profile-preview').innerHTML = '<div class="profile-top"><div class="profile-avatar" style="background:' + pfColor + '">' + esc(name.charAt(0).toUpperCase()) + '</div>' + (state.user && state.user.pro ? '<div class="pro-badge">💎 Про</div>' : '') + '</div><div class="h3 mt12">' + esc(name) + '</div>' + (bio ? '<div class="sub small mt8">' + esc(bio) + '</div>' : '') + '<div class="sub small mt8 dim">Так тебя видят друзья во вкладке «Друзья»</div>';
+}
+async function saveProfile() {
+  const name = $('#pf-name').value.trim();
+  if (!name) { toast('Имя не может быть пустым'); return; }
+  const bio = $('#pf-bio').value.trim();
+  try {
+    const data = await api('/api/profile', { name, bio, color: pfColor });
+    SFX.play('ok');
+    toast('Профиль сохранён 💾');
+    if (state.user) state.user.name = data.profile.name;
+    renderProfilePreview();
+  } catch (e) { toast(e.message); }
+}
+
 /* ---------- настройки ---------- */
 async function openSettings() {
   show('settings');
@@ -741,7 +1007,52 @@ async function openSettings() {
       toast(e.message);
     }
   };
-  // донат-кнопки привязаны глобально (bindDonate при старте)
+
+  // Про+
+  const proCard = $('#pro-card');
+  const proSub = $('#pro-sub');
+  const subBtn = $('#btn-sub-buy');
+  if (state.user && state.user.pro) {
+    proCard.classList.add('pro-active');
+    proSub.innerHTML = `💎 <b>Про активен</b>${state.user.pro_until ? ' до ' + new Date(state.user.pro_until).toLocaleDateString('ru-RU') : ''}<br>Все паки · авторы шептунков · 20 квизов в день`;
+    subBtn.style.display = 'none';
+  } else {
+    subBtn.style.display = '';
+    subBtn.onclick = async () => {
+      subBtn.disabled = true;
+      try {
+        const data = await api('/api/sub/buy');
+        SFX.play('coin');
+        const onClosed = async (e) => {
+          tg.offEvent('invoiceClosed', onClosed);
+          if (e && e.status === 'paid') {
+            try { await api('/api/payments/confirm', { payload: data.payload }); } catch (err) {}
+            toast('💎 Про+ активирован!');
+            SFX.play('coin');
+            try { const s = await api('/api/session'); state.user = s.user; } catch (err) {}
+            openSettings();
+          }
+        };
+        tg.onEvent('invoiceClosed', onClosed);
+        tg.openInvoice(data.invoice_link);
+      } catch (e) {
+        toast(e.message);
+      } finally {
+        subBtn.disabled = false;
+      }
+    };
+  }
+
+  // звуки
+  const sws = $('#sw-sound');
+  sws.classList.toggle('on', SFX.enabled);
+  sws.onclick = () => {
+    const on = SFX.toggle();
+    sws.classList.toggle('on', on);
+    haptic('light');
+    if (on) SFX.play('ok');
+    toast(on ? 'Звуки включены 🔊' : 'Звуки выключены 🔇');
+  };
 
   // награда за донат?
   try {
@@ -885,6 +1196,9 @@ function bindButtons() {
   on('btn-go-board', () => openBoard(state.createQuiz.id));
   on('btn-take-start', () => renderTakeQ(0));
   on('btn-res-create', openPack);
+  on('btn-pf-save', saveProfile);
+  on('wtab-in', () => { whTab = 'in'; renderWhispers(); });
+  on('wtab-out', () => { whTab = 'out'; renderWhispers(); });
   on('btn-claim-open', openClaimFlow);
   on('btn-claim-apply', applyClaim);
   on('btn-claim-later', () => show('settings'));
@@ -959,7 +1273,7 @@ function bindDonate() {
   });
 }
 
-/* ---------- воронка на welcome: соцдоказательство + тизер-карусель ---------- */
+/* ---------- воронка на welcome: соцдоказательство + тизер-карусель + вопрос дня ---------- */
 async function loadWelcomeExtras() {
   try {
     const res = await fetchRetry(`${API}/api/stats`, { method: 'GET' });
@@ -967,6 +1281,16 @@ async function loadWelcomeExtras() {
     if (s.ok) {
       const el = $('#wstats');
       if (el) el.textContent = `🔥 Уже создано ${s.quizzes} квизов · 💬 ${s.answers} ответов от друзей`;
+    }
+  } catch (e) {}
+
+  // бесплатный «Вопрос дня»
+  try {
+    const res = await fetchRetry(`${API}/api/qotd`, { method: 'GET' });
+    const s = await res.json();
+    if (s.ok) {
+      const el = $('#wqotd');
+      if (el) el.textContent = s.q;
     }
   } catch (e) {}
 

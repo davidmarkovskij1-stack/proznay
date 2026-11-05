@@ -25,13 +25,16 @@ const sendMessage = (chat_id, text, extra = {}) =>
 const answerCallbackQuery = (callback_query_id, text) =>
   call('answerCallbackQuery', { callback_query_id, text });
 
-const createInvoiceLink = (o) =>
-  call('createInvoiceLink', {
+const createInvoiceLink = (o) => {
+  const params = {
     title: o.title || 'Прознай',
     description: o.description || 'Спасибо за поддержку!',
     payload: o.payload,
     currency: 'XTR',
     prices: [{ label: o.label || 'Прознай', amount: o.amount || 99 }],
-  });
+  };
+  if (o.subscription_period) params.subscription_period = o.subscription_period;
+  return call('createInvoiceLink', params);
+};
 
 module.exports = { call, sendMessage, answerCallbackQuery, createInvoiceLink, API };
