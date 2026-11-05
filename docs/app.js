@@ -66,6 +66,7 @@ const PACK_META = {
   truth: ['🌶', 'Горькая правда'],
   roast: ['🤡', 'Кринж и ляпы'],
   adult: ['🌙', 'После полуночи'],
+  psy: ['🧠', 'Психология'],
 };
 
 /* ---------- утилиты ---------- */
@@ -228,7 +229,7 @@ async function loadPacks() {
     state.packs = data.packs;
   } catch (e) {
     state.packs = Object.entries(PACK_META).map(([code, [emoji, title]]) => ({
-      code, emoji, title, desc: '', price: 0, owned: true, adult: false,
+      code, emoji, title, desc: '', price: 0, owned: true, adult: false, soon: code === 'psy',
     }));
   }
 }
