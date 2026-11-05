@@ -1223,6 +1223,7 @@ async function boot() {
   loadPacks();
   bindButtons();
   bindDonate();
+  bindNav();
 
   show('splash');
   const sp = (tg.initDataUnsafe && tg.initDataUnsafe.start_param) ||

@@ -14,10 +14,11 @@
   --grad-soft: linear-gradient(135deg, rgba(124, 92, 255, 0.16) 0%, rgba(255, 110, 199, 0.16) 100%);
   --danger: #ff6b6b;
   --ok: #4ade80;
-  --r-lg: 22px;
-  --r-md: 16px;
-  --r-sm: 12px;
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --r-lg: 24px;
+  --r-md: 18px;
+  --r-sm: 13px;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --spring: cubic-bezier(0.34, 1.36, 0.44, 1);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -30,6 +31,8 @@ html, body {
   line-height: 1.45;
   min-height: 100vh;
   overscroll-behavior-y: none;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
 }
 
 body::before {
@@ -53,12 +56,12 @@ body::before {
 }
 
 /* ---------- экраны ---------- */
-.screen { display: none; animation: screenIn 0.32s var(--ease); }
-.screen.active { display: block; }
+.screen { display: none; }
+.screen.active { display: block; animation: screenIn 0.42s var(--ease); }
 
 @keyframes screenIn {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(18px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* ---------- типографика ---------- */
@@ -109,10 +112,10 @@ body::before {
   background: var(--grad);
   border-radius: var(--r-md);
   padding: 16px 20px;
-  transition: transform 0.15s var(--ease), opacity 0.15s, box-shadow 0.2s;
+  transition: transform 0.35s var(--spring), opacity 0.2s, box-shadow 0.3s var(--ease);
   box-shadow: 0 12px 32px rgba(124, 92, 255, 0.30);
 }
-.btn:active { transform: scale(0.975); }
+.btn:active { transform: scale(0.955); }
 .btn:disabled { opacity: 0.45; box-shadow: none; }
 .btn.ghost {
   background: var(--card);
@@ -143,9 +146,9 @@ body::before {
   color: var(--text);
   font-family: inherit; font-size: 15.5px; font-weight: 600;
   text-align: left; cursor: pointer;
-  transition: all 0.18s var(--ease);
+  transition: all 0.3s var(--spring);
 }
-.opt:active { transform: scale(0.985); }
+.opt:active { transform: scale(0.96); }
 .opt.sel {
   background: var(--grad-soft);
   border-color: var(--violet);
@@ -232,7 +235,7 @@ body::before {
   border-radius: var(--r-md); padding: 15px 16px; cursor: pointer;
   transition: transform 0.15s var(--ease);
 }
-.quiz-item:active { transform: scale(0.985); }
+.quiz-item:active { transform: scale(0.965); }
 .quiz-item + .quiz-item { margin-top: 10px; }
 .quiz-item .q-emoji {
   width: 44px; height: 44px; flex: 0 0 44px; border-radius: 14px;
@@ -553,27 +556,37 @@ body::after {
   color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em;
 }
 
-/* ---------- нижнее меню (5 вкладок) ---------- */
+/* ---------- нижнее меню: плавующий овал как в iOS ---------- */
 #navbar {
-  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 100%; max-width: 480px;
-  display: flex; justify-content: space-around; align-items: stretch;
-  background: rgba(13, 13, 22, 0.92);
-  backdrop-filter: blur(16px);
-  border-top: 1px solid var(--border);
-  padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+  position: fixed;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 36px);
+  max-width: 444px;
+  display: flex; justify-content: space-around; align-items: center;
+  background: rgba(21, 21, 34, 0.72);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 30px;
+  padding: 8px 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 2px 10px rgba(0, 0, 0, 0.3);
   z-index: 50;
 }
 #navbar button {
   flex: 1; background: none; border: none; cursor: pointer;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   font-family: inherit; color: var(--dim-2); font-size: 19px;
-  padding: 4px 0; border-radius: 10px;
-  transition: color 0.15s;
+  padding: 7px 0 5px; border-radius: 22px;
+  transition: color 0.25s var(--ease), background 0.25s var(--ease), transform 0.25s var(--ease);
 }
 #navbar button span { font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; }
-#navbar button.active { color: var(--violet); }
-#navbar button:active { transform: scale(0.92); }
+#navbar button:active { transform: scale(0.9); }
+#navbar button.active {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.30), rgba(255, 110, 199, 0.24));
+}
 
 /* ---------- профиль ---------- */
 .p-input {
